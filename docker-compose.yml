@@ -74,20 +74,76 @@ services:
     restart: "no"
 
   flink-jobmanager:
-    image: flink:1.19.1-scala_2.12-java17
+    build:
+      context: .
+      dockerfile: docker/flink/Dockerfile
     command: jobmanager
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      minio:
+        condition: service_started
     environment:
       JOB_MANAGER_RPC_ADDRESS: flink-jobmanager
+      FLINK_PROPERTIES: |-
+        jobmanager.rpc.address: flink-jobmanager
+        fs.s3a.endpoint: http://minio:9000
+        fs.s3a.access.key: minioadmin
+        fs.s3a.secret.key: minioadmin
+        fs.s3a.path.style.access: true
+        fs.s3a.connection.ssl.enabled: false
+        fs.s3a.aws.credentials.provider: org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
     ports:
       - "8081:8081"
 
   flink-taskmanager:
-    image: flink:1.19.1-scala_2.12-java17
+    build:
+      context: .
+      dockerfile: docker/flink/Dockerfile
     command: taskmanager
     depends_on:
       - flink-jobmanager
     environment:
       JOB_MANAGER_RPC_ADDRESS: flink-jobmanager
+      FLINK_PROPERTIES: |-
+        fs.s3a.endpoint: http://minio:9000
+        fs.s3a.access.key: minioadmin
+        fs.s3a.secret.key: minioadmin
+        fs.s3a.path.style.access: true
+        fs.s3a.connection.ssl.enabled: false
+        fs.s3a.aws.credentials.provider: org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
+
+  flink-submit-bronze:
+    profiles:
+      - bronze
+    build:
+      context: .
+      dockerfile: docker/flink/Dockerfile
+    depends_on:
+      flink-jobmanager:
+        condition: service_started
+      flink-taskmanager:
+        condition: service_started
+      minio:
+        condition: service_started
+      redpanda:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      FLINK_JOBMANAGER_HOST: flink-jobmanager
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      BRONZE_SINK_BASE: s3a://tick-vault/bronze
+      CHECKPOINT_DIR: s3a://tick-vault/flink-checkpoints
+      FLINK_PROPERTIES: |-
+        fs.s3a.endpoint: http://minio:9000
+        fs.s3a.access.key: minioadmin
+        fs.s3a.secret.key: minioadmin
+        fs.s3a.path.style.access: true
+        fs.s3a.connection.ssl.enabled: false
+        fs.s3a.aws.credentials.provider: org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
+    entrypoint: ["/opt/flink/scripts/wait_and_submit.sh"]
+    restart: "no"
 
   producers:
     build:

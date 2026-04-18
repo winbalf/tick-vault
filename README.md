@@ -29,9 +29,14 @@ Crypto market microstructure pipeline that ingests real-time ticks/order book de
 ## Project structure
 
 - `docker-compose.yml` - local streaming stack orchestration
-- `docker/` - service Dockerfiles
+- `docker/` - producer and Flink Dockerfiles
+- `docker/flink/` - Flink image (Kafka + Parquet + S3/GS plugins) and bronze job submit script
 - `scripts/create_topics.py` - topic bootstrap utility
+- `scripts/validate_bronze_offsets.py` - compare Kafka high-water sums to Parquet/BigQuery counts
+- `infra/gcs/` - GCS lifecycle (90-day bronze prefix) helper
+- `infra/bigquery/` - external table DDL over Hive-partitioned bronze Parquet
 - `src/producers/` - websocket ingestion workers and schemas
+- `src/flink_jobs/` - PyFlink streaming jobs
 
 ## Data contracts
 
@@ -54,8 +59,8 @@ Kraken WS (order book) -------/                                |
 
 topic-init -----------> creates required topics before producers start
 console -------------> inspect topics/messages at localhost:8080
-minio + minio-init --> local S3 bucket ready for next phases (no writes yet)
-flink jm/tm ---------> runtime available for future streaming jobs (no jobs yet)
+minio + minio-init --> bucket `tick-vault` (S3A sink target for local bronze)
+flink jm/tm ---------> PyFlink bronze job (submit via `flink-submit-bronze` service)
 ```
 
 ### Active in Phase 1
@@ -68,9 +73,46 @@ flink jm/tm ---------> runtime available for future streaming jobs (no jobs yet)
 
 ### Prepared for next phases
 
-- Flink services running but no stream processing job submitted yet
-- MinIO bucket initialized but no bronze sink writer enabled yet
-- Silver/gold transforms (OHLCV, spread, volatility) not started yet
+- Silver/gold transforms (OHLCV, spread, volatility) and Grafana marts not started yet
+
+## Phase 2 — Bronze (Redpanda → Parquet → BigQuery-ready)
+
+**Local:** Flink reads `raw.trades.v1` and `raw.depth.v1`, writes **Hive-style** Parquet under `s3a://tick-vault/bronze/` (MinIO), partitioned by **`dt` / `symbol` / `exchange`** (UTC calendar date from `event_ts_ms`, path-safe symbol, venue as exchange). Checkpoints land under `s3a://tick-vault/flink-checkpoints/`.
+
+**Submit the job** (JobManager and TaskManagers must already be up):
+
+- `docker compose up -d minio minio-init redpanda topic-init flink-jobmanager flink-taskmanager`
+- `docker compose --profile bronze run --rm flink-submit-bronze` (detached `flink run -d`; job keeps running on the cluster; profile avoids auto-submit on every `docker compose up`)
+
+**Production:** set `BRONZE_SINK_BASE` / `CHECKPOINT_DIR` to `gs://...` on Flink and ensure the cluster has GCS credentials plus `flink-gs-fs-hadoop` on the classpath (already copied into this repo’s Flink image from `/opt/flink/opt`).
+
+### Bronze Parquet columns (queryable + pruning keys)
+
+| Column | Type (logical) | Notes |
+| --- | --- | --- |
+| `stream_kind` | string | `trades` or `depth` |
+| `payload` | string | Full JSON record from Redpanda (raw tick as published) |
+| `exchange` | string | Same as producer `venue` (e.g. `binance`, `kraken`) |
+| `symbol` | string | Path-safe symbol for partitions (`/` → `-`, `:` → `_`); full symbol remains inside `payload` |
+| `event_ts_ms` | bigint | From payload when present |
+| `ingest_ts` | string | ISO timestamp string from payload |
+| `kafka_topic` | string | Kafka metadata |
+| `kafka_partition` | int | Kafka metadata |
+| `kafka_offset` | bigint | Kafka metadata (use for offset reconciliation) |
+| `kafka_ts` | timestamp(3) | Kafka record timestamp |
+| `dt` | string | `yyyy-MM-dd` partition key (UTC) |
+
+**GCP**
+
+- Lifecycle (delete objects under `bronze/` older than 90 days): `./infra/gcs/apply_lifecycle_bronze.sh gs://YOUR_BUCKET`
+- BigQuery external table: edit placeholders in `infra/bigquery/bronze_external_tables.sql`, then create the table in the console or `bq query`.
+
+**Validation**
+
+- `pip install -r requirements-bronze-tools.txt`
+- `python scripts/validate_bronze_offsets.py --kafka-bootstrap localhost:19092 --parquet-s3-prefix s3://tick-vault/bronze` (optional `--bigquery-table project.dataset.table`)
+
+Offsets are approximate: Kafka retention/compaction, Flink at-least-once duplicates, and lag while the job catches up can all skew counts.
 
 ## Source docs
 
