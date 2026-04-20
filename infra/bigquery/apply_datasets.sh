@@ -4,7 +4,7 @@
 #
 # Usage:
 #   export GCP_PROJECT_ID=your-project-id
-#   export BQ_LOCATION=us-central1   # optional; default us-central1
+#   export BQ_LOCATION=US   # optional; default US (matches dbt profile location)
 #   ./infra/bigquery/apply_datasets.sh
 
 set -euo pipefail
@@ -27,7 +27,7 @@ if ! command -v bq >/dev/null 2>&1; then
 fi
 
 project="${GCP_PROJECT_ID:?Set GCP_PROJECT_ID to your GCP project id}"
-location="${BQ_LOCATION:-us-central1}"
+location="${BQ_LOCATION:-US}"
 
 for dataset in tickvault_bronze tickvault_silver tickvault_gold; do
   fqid="${project}:${dataset}"

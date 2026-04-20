@@ -119,7 +119,7 @@ Or open **MinIO Console** at `http://localhost:9001` (same credentials as in `do
 
 ### GCP path from local MinIO (automated)
 
-BigQuery bronze in this repo is an **external table** over **`gs://$GCS_BUCKET/bronze/**`**, so GCS is part of the path whenever you use that pattern (local MinIO is still the Flink sink until you change `BRONZE_SINK_BASE`).
+BigQuery bronze in this repo is an **external table** over **`gs://$GCS_BUCKET/bronze/*`** (with Hive partition discovery under that prefix), so GCS is part of the path whenever you use that pattern (local MinIO is still the Flink sink until you change `BRONZE_SINK_BASE`).
 
 **A) Compose profile `gcs` (recommended when developing with Docker):**
 
@@ -180,7 +180,7 @@ Medallion models read the bronze external table (`tickvault_bronze`), materializ
 **Setup**
 
 - `pip install -r requirements-dbt.txt`
-- `export GCP_PROJECT_ID=...` (and auth). Create datasets: `./infra/bigquery/apply_datasets.sh` (optional `BQ_LOCATION`, defaults to `us-central1`). Or run `infra/bigquery/create_medallion_datasets.sql` in the console after replacing `PROJECT` and `LOCATION`.
+- `export GCP_PROJECT_ID=...` (and auth). Create datasets: `./infra/bigquery/apply_datasets.sh` (optional `BQ_LOCATION`, defaults to `US` to match `dbt/profiles.yml`). Or run `infra/bigquery/create_medallion_datasets.sql` in the console after replacing `PROJECT` and `LOCATION`.
 - Copy `dbt/profiles.yml.example` to `~/.dbt/profiles.yml`, or copy it to `dbt/profiles.yml` and run dbt with `DBT_PROFILES_DIR` pointing at the `dbt/` directory. Use `dev_oauth` (`gcloud auth application-default login`) or set `target: dev_sa` and export `GCP_PROJECT_ID` and `GOOGLE_APPLICATION_CREDENTIALS` (absolute path to the SA JSON) before `dbt` (`.env` is not read automatically unless you source it).
 - Export `GCP_PROJECT_ID` if you prefer not to pass `gcp_project_id` via `--vars`.
 

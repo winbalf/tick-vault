@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Create or replace the bronze external table over gs://BUCKET/bronze/** (Hive partitions).
+# Create or replace the bronze external table over gs://BUCKET/bronze/* (Hive partitions).
 #
 # Requires: bq CLI, GCP_PROJECT_ID, GCS_BUCKET (no gs:// prefix)
 # Optional: BQ_BRONZE_DATASET (default tickvault_bronze), BQ_BRONZE_TABLE (default tickvault_bronze)
@@ -36,26 +36,29 @@ dataset="${BQ_BRONZE_DATASET:-tickvault_bronze}"
 table="${BQ_BRONZE_TABLE:-tickvault_bronze}"
 fqtn="${project}.${dataset}.${table}"
 
-echo "Applying external table ${fqtn} -> gs://${bucket}/bronze/** ..."
+echo "Applying external table ${fqtn} -> gs://${bucket}/bronze/* ..."
 
 bq query --use_legacy_sql=false --project_id="${project}" <<EOF
 CREATE OR REPLACE EXTERNAL TABLE \`${project}.${dataset}.${table}\`
 (
   stream_kind STRING,
   payload STRING,
-  exchange STRING,
-  symbol STRING,
   event_ts_ms INT64,
   ingest_ts STRING,
   kafka_topic STRING,
   kafka_partition INT64,
   kafka_offset INT64,
-  kafka_ts TIMESTAMP,
-  dt STRING
+  kafka_ts TIMESTAMP
+)
+WITH PARTITION COLUMNS
+(
+  dt STRING,
+  symbol STRING,
+  exchange STRING
 )
 OPTIONS (
   format = 'PARQUET',
-  uris = ['gs://${bucket}/bronze/**'],
+  uris = ['gs://${bucket}/bronze/*'],
   hive_partition_uri_prefix = 'gs://${bucket}/bronze',
   require_hive_partition_filter = FALSE
 );

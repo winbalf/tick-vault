@@ -23,7 +23,7 @@ tick_vault:
       dataset: tickvault_silver
       threads: 4
       timeout_seconds: 300
-      location: US
+      location: "{{ env_var('BQ_LOCATION') }}"
       priority: interactive
       retries: 1
 
@@ -35,6 +35,6 @@ tick_vault:
       dataset: tickvault_silver
       threads: 4
       timeout_seconds: 300
-      location: US
+      location: "{{ env_var('BQ_LOCATION') }}"
       priority: interactive
       retries: 1

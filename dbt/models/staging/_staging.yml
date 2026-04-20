@@ -3,6 +3,9 @@ version: 2
 models:
   - name: stg_trades
     description: Typed trade ticks from bronze; deduped on exchange, symbol, trade_id; invalid rows removed.
+    tests:
+      - unique_column_combination:
+          columns: ["trade_id", "event_ts"]
     columns:
       - name: trade_key
         description: Surrogate key for uniqueness tests (topic|partition|offset).

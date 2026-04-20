@@ -5,9 +5,21 @@ sources:
     description: Hive-partitioned bronze Parquet external table (Flink sink).
     database: "{{ var('gcp_project_id', env_var('GCP_PROJECT_ID', 'your-gcp-project')) }}"
     schema: "{{ var('bronze_dataset', 'tickvault_bronze') }}"
+    loaded_at_field: kafka_ts
+    freshness:
+      error_after: {count: 5, period: minute}
     tables:
       - name: tickvault_bronze
         description: Raw trades and depth rows with JSON payload and Kafka metadata.
+        tests:
+          - required_json_fields:
+              json_column: payload
+              required_fields: ["trade_id", "event_ts_ms", "price", "quantity", "ingest_ts"]
+              row_filter: "stream_kind = 'trades'"
+          - required_json_fields:
+              json_column: payload
+              required_fields: ["update_id", "event_ts_ms", "bids", "asks", "ingest_ts"]
+              row_filter: "stream_kind = 'depth'"
         columns:
           - name: stream_kind
             description: "trades or depth"

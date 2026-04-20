@@ -46,3 +46,19 @@ models:
         description: Sample standard deviation of the last 15 one-minute log returns (including the current minute).
       - name: spread_bps
         description: Average inside bid-ask spread in basis points of mid for the minute when depth is present.
+      - name: dead_letter_count
+        description: Dead-lettered producer events observed in the same minute.
+        tests:
+          - not_null
+      - name: zero_volume_flag
+        description: True when the minute candle has zero traded volume.
+        tests:
+          - not_null
+      - name: price_spike_flag
+        description: True when close deviates by over 10 percent from 5-minute rolling average.
+        tests:
+          - not_null
+      - name: anomaly_flag
+        description: Composite silver anomaly flag propagated for alerting.
+        tests:
+          - not_null

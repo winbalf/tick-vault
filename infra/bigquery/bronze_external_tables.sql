@@ -7,19 +7,22 @@ CREATE OR REPLACE EXTERNAL TABLE `PROJECT.DATASET.tickvault_bronze`
 (
   stream_kind STRING,
   payload STRING,
-  exchange STRING,
-  symbol STRING,
   event_ts_ms INT64,
   ingest_ts STRING,
   kafka_topic STRING,
   kafka_partition INT64,
   kafka_offset INT64,
-  kafka_ts TIMESTAMP,
-  dt STRING
+  kafka_ts TIMESTAMP
+)
+WITH PARTITION COLUMNS
+(
+  dt STRING,
+  symbol STRING,
+  exchange STRING
 )
 OPTIONS (
   format = 'PARQUET',
-  uris = ['gs://BUCKET/bronze/**'],
+  uris = ['gs://BUCKET/bronze/*'],
   hive_partition_uri_prefix = 'gs://BUCKET/bronze',
   require_hive_partition_filter = FALSE
 );

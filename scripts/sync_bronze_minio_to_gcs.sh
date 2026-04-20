@@ -13,6 +13,7 @@
 #   DOCKER_MC_NETWORK (default host) — docker network for the mc container when USE_LOCAL_MC is unset
 #   MINIO_ACCESS_KEY / MINIO_SECRET_KEY (default minioadmin / minioadmin)
 #   STAGING_DIR (default a temp dir under /tmp)
+#   MINIO_BRONZE_PREFIX (default tick-vault/bronze)
 #   SKIP_GCS_UPLOAD_IF_NO_PARQUET=1 — after mirror, if no *.parquet, skip GCS upload and exit 0
 #
 # Usage:
@@ -39,6 +40,7 @@ bucket="${_raw_bucket#gs://}"
 endpoint="${MINIO_ENDPOINT:-http://127.0.0.1:9000}"
 access="${MINIO_ACCESS_KEY:-minioadmin}"
 secret="${MINIO_SECRET_KEY:-minioadmin}"
+minio_source="${MINIO_BRONZE_PREFIX:-tick-vault/bronze}"
 staging="${STAGING_DIR:-$(mktemp -d -t tickvault-bronze-sync.XXXXXX)}"
 
 cleanup() {
@@ -66,7 +68,11 @@ if [[ "${USE_LOCAL_MC:-}" == "1" ]]; then
     exit 1
   fi
   mc alias set local "${endpoint}" "${access}" "${secret}"
-  mc mirror --overwrite --remove local/tick-vault/bronze "${staging}/bronze"
+  if mc stat "local/${minio_source}" >/dev/null 2>&1; then
+    mc mirror --overwrite --remove "local/${minio_source}" "${staging}/bronze"
+  else
+    echo "Warning: MinIO source local/${minio_source} does not exist yet; treating bronze mirror as empty." >&2
+  fi
 else
   if ! command -v docker >/dev/null 2>&1; then
     echo "docker not found." >&2
@@ -79,9 +85,10 @@ else
     -e MC_CONFIG_DIR=/tmp/mcconfig \
     -e HOME=/tmp \
     -v "${staging}:/out" \
+    -e MINIO_SOURCE="${minio_source}" \
     --entrypoint /bin/sh \
     minio/mc:RELEASE.2024-08-26T10-49-58Z \
-    -c "mc alias set local '${endpoint}' '${access}' '${secret}' && mc mirror --overwrite --remove local/tick-vault/bronze /out/bronze"
+    -c "mc alias set local '${endpoint}' '${access}' '${secret}' && if mc stat \"local/\${MINIO_SOURCE}\" >/dev/null 2>&1; then mc mirror --overwrite --remove \"local/\${MINIO_SOURCE}\" /out/bronze; else echo \"Warning: MinIO source local/\${MINIO_SOURCE} does not exist yet; treating bronze mirror as empty.\" >&2; fi"
 fi
 
 # Flink/Spark often write Parquet as part-* without a .parquet suffix.
