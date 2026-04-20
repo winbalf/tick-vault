@@ -15,6 +15,18 @@ class Settings:
     dlq_topic: str
     reconnect_base_seconds: float
     reconnect_max_seconds: float
+    coingecko_enabled: bool
+    coingecko_topic: str
+    coingecko_poll_seconds: float
+    coingecko_id: str
+    cryptocompare_enabled: bool
+    cryptocompare_topic: str
+    cryptocompare_poll_seconds: float
+    cryptocompare_fsym: str
+
+
+def _env_bool(name: str, default: str = "true") -> bool:
+    return os.getenv(name, default).strip().lower() in ("1", "true", "yes", "on")
 
 
 def load_settings() -> Settings:
@@ -30,4 +42,12 @@ def load_settings() -> Settings:
         dlq_topic=os.getenv("DLQ_TOPIC", "dlq.trades"),
         reconnect_base_seconds=float(os.getenv("RECONNECT_BASE_SECONDS", "1")),
         reconnect_max_seconds=float(os.getenv("RECONNECT_MAX_SECONDS", "30")),
+        coingecko_enabled=_env_bool("COINGECKO_ENABLED", "true"),
+        coingecko_topic=os.getenv("COINGECKO_TOPIC", "raw.coingecko.v1"),
+        coingecko_poll_seconds=float(os.getenv("COINGECKO_POLL_SECONDS", "60")),
+        coingecko_id=os.getenv("COINGECKO_ID", "bitcoin"),
+        cryptocompare_enabled=_env_bool("CRYPTOCOMPARE_ENABLED", "true"),
+        cryptocompare_topic=os.getenv("CRYPTOCOMPARE_TOPIC", "raw.cryptocompare.v1"),
+        cryptocompare_poll_seconds=float(os.getenv("CRYPTOCOMPARE_POLL_SECONDS", "60")),
+        cryptocompare_fsym=os.getenv("CRYPTOCOMPARE_FSYM", "BTC"),
     )

@@ -1,0 +1,99 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {"type": "grafana-bigquery-datasource", "uid": "bq_tickvault"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "palette-classic"}, "mappings": []},
+        "overrides": []
+      },
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 0},
+      "id": 1,
+      "options": {
+        "legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true},
+        "tooltip": {"mode": "single", "sort": "none"}
+      },
+      "targets": [
+        {
+          "datasource": {"type": "grafana-bigquery-datasource", "uid": "bq_tickvault"},
+          "editorMode": "code",
+          "format": 1,
+          "rawSql": "SELECT DATETIME(metric_ts) AS time, CAST(close AS FLOAT64) AS close FROM `${gcp_project}.${gold_dataset}.fct_market_metrics` WHERE metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) ORDER BY 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Close (BigQuery)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "grafana-bigquery-datasource", "uid": "bq_tickvault"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 9},
+      "id": 2,
+      "options": {"showHeader": true},
+      "targets": [
+        {
+          "datasource": {"type": "grafana-bigquery-datasource", "uid": "bq_tickvault"},
+          "editorMode": "code",
+          "format": 0,
+          "rawSql": "SELECT metric_ts, exchange, symbol, close, volume, spread_bps, volatility FROM `${gcp_project}.${gold_dataset}.fct_market_metrics` ORDER BY metric_ts DESC LIMIT 50",
+          "refId": "A"
+        }
+      ],
+      "title": "Latest rows",
+      "type": "table"
+    },
+    {
+      "datasource": {"type": "grafana-bigquery-datasource", "uid": "bq_tickvault"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 9},
+      "id": 3,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "single", "sort": "none"}},
+      "targets": [
+        {
+          "datasource": {"type": "grafana-bigquery-datasource", "uid": "bq_tickvault"},
+          "editorMode": "code",
+          "format": 1,
+          "rawSql": "SELECT DATETIME(metric_ts) AS time, CAST(spread_bps AS FLOAT64) AS spread_bps FROM `${gcp_project}.${gold_dataset}.fct_market_metrics` WHERE spread_bps IS NOT NULL AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) ORDER BY 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Spread (bps) when depth-backed",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["tick-vault", "phase-3"],
+  "templating": {
+    "list": [
+      {
+        "current": {"selected": false, "text": "your-gcp-project", "value": "your-gcp-project"},
+        "hide": 0,
+        "label": "GCP project",
+        "name": "gcp_project",
+        "options": [{"selected": true, "text": "your-gcp-project", "value": "your-gcp-project"}],
+        "query": "your-gcp-project",
+        "type": "textbox"
+      },
+      {
+        "current": {"selected": false, "text": "tickvault_gold", "value": "tickvault_gold"},
+        "hide": 0,
+        "label": "Gold dataset",
+        "name": "gold_dataset",
+        "options": [{"selected": true, "text": "tickvault_gold", "value": "tickvault_gold"}],
+        "query": "tickvault_gold",
+        "type": "textbox"
+      }
+    ]
+  },
+  "time": {"from": "now-24h", "to": "now"},
+  "timezone": "browser",
+  "title": "Tick Vault — market metrics",
+  "uid": "tickvault-markets",
+  "version": 1
+}

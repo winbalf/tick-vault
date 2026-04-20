@@ -1,0 +1,36 @@
+name: tick_vault
+version: "1.0.0"
+config-version: 2
+
+profile: tick_vault
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+analysis-paths: ["analyses"]
+seed-paths: ["seeds"]
+snapshot-paths: ["snapshots"]
+test-paths: ["tests"]
+
+vars:
+  bronze_dataset: tickvault_bronze
+  silver_dataset: tickvault_silver
+  gold_dataset: tickvault_gold
+
+models:
+  tick_vault:
+    +materialized: view
+    staging:
+      +schema: "{{ var('silver_dataset', 'tickvault_silver') }}"
+    intermediate:
+      +schema: "{{ var('silver_dataset', 'tickvault_silver') }}"
+      +materialized: table
+    marts:
+      +schema: "{{ var('gold_dataset', 'tickvault_gold') }}"
+      +materialized: table
+      fct_market_metrics:
+        +materialized: table
+        +partition_by:
+          field: metric_date
+          data_type: date
+          granularity: day
+        +cluster_by: ["symbol", "exchange"]

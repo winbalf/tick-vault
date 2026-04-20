@@ -1,0 +1,14 @@
+version: 2
+
+exposures:
+  - name: grafana_trading_dashboard
+    label: Grafana trading dashboard
+    type: dashboard
+    maturity: medium
+    description: >
+      Minute-grain OHLCV, VWAP, spread, and realized volatility sourced from
+      fct_market_metrics for operational monitoring.
+    depends_on:
+      - ref("fct_market_metrics")
+    owner:
+      name: tick-vault

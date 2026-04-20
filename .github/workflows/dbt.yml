@@ -1,0 +1,44 @@
+name: dbt
+
+on:
+  push:
+    paths:
+      - "dbt/**"
+      - ".github/workflows/dbt.yml"
+      - "requirements-dbt.txt"
+  pull_request:
+    paths:
+      - "dbt/**"
+      - ".github/workflows/dbt.yml"
+      - "requirements-dbt.txt"
+
+jobs:
+  parse:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dbt
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dbt
+        run: pip install -r ../requirements-dbt.txt
+
+      - name: Minimal BigQuery profile for parse
+        run: |
+          mkdir -p /tmp/dbt-ci-profiles
+          sed 's/your-gcp-project-id/ci-parse-placeholder/g' profiles.yml.example > /tmp/dbt-ci-profiles/profiles.yml
+
+      - name: dbt parse
+        env:
+          DBT_PROFILES_DIR: /tmp/dbt-ci-profiles
+        run: dbt parse
+
+      - name: dbt docs (empty catalog, no warehouse)
+        env:
+          DBT_PROFILES_DIR: /tmp/dbt-ci-profiles
+        run: dbt docs generate --no-compile --empty-catalog

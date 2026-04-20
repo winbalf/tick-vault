@@ -74,6 +74,7 @@ docs/_build/
 # PyBuilder
 .pybuilder/
 target/
+dbt/logs/
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -137,6 +138,9 @@ celerybeat.pid
 # Environments
 .env
 .envrc
+
+# Service account keys (never commit JSON keys)
+keys/*.json
 .venv
 env/
 venv/

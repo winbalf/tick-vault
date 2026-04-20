@@ -2,7 +2,9 @@ import asyncio
 import signal
 
 from producers.binance_trades import run_binance_trades
+from producers.coingecko_rest import run_coingecko_quotes
 from producers.config import load_settings
+from producers.cryptocompare_rest import run_cryptocompare_quotes
 from producers.kraken_depth import run_kraken_depth
 from producers.redpanda import RedpandaSink
 
@@ -20,6 +22,10 @@ async def run() -> None:
         asyncio.create_task(run_binance_trades(settings=settings, sink=sink)),
         asyncio.create_task(run_kraken_depth(settings=settings, sink=sink)),
     ]
+    if settings.coingecko_enabled:
+        tasks.append(asyncio.create_task(run_coingecko_quotes(settings=settings, sink=sink)))
+    if settings.cryptocompare_enabled:
+        tasks.append(asyncio.create_task(run_cryptocompare_quotes(settings=settings, sink=sink)))
     wait_task = asyncio.create_task(stop.wait())
 
     done, pending = await asyncio.wait(tasks + [wait_task], return_when=asyncio.FIRST_COMPLETED)

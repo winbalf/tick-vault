@@ -1,0 +1,23 @@
+version: 2
+
+sources:
+  - name: bronze
+    description: Hive-partitioned bronze Parquet external table (Flink sink).
+    database: "{{ var('gcp_project_id', env_var('GCP_PROJECT_ID', 'your-gcp-project')) }}"
+    schema: "{{ var('bronze_dataset', 'tickvault_bronze') }}"
+    tables:
+      - name: tickvault_bronze
+        description: Raw trades and depth rows with JSON payload and Kafka metadata.
+        columns:
+          - name: stream_kind
+            description: "trades or depth"
+          - name: payload
+            description: Full JSON record from the producer (TradeEvent or OrderBookEvent).
+          - name: exchange
+            description: Venue slug aligned with producer venue (e.g. binance, kraken).
+          - name: symbol
+            description: Path-safe symbol used in Hive partitions.
+          - name: event_ts_ms
+            description: Event time in epoch milliseconds when present on the payload.
+          - name: kafka_offset
+            description: Kafka offset for deduplication and reconciliation.

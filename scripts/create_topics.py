@@ -17,6 +17,8 @@ def main() -> None:
         get_env("TRADES_TOPIC", "raw.trades.v1"),
         get_env("DEPTH_TOPIC", "raw.depth.v1"),
         get_env("DLQ_TOPIC", "dlq.trades"),
+        os.getenv("COINGECKO_TOPIC", "raw.coingecko.v1").strip() or "raw.coingecko.v1",
+        os.getenv("CRYPTOCOMPARE_TOPIC", "raw.cryptocompare.v1").strip() or "raw.cryptocompare.v1",
     ]
 
     admin = KafkaAdminClient(bootstrap_servers=brokers, client_id="tick-vault-topic-init")

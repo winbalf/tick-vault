@@ -1,0 +1,48 @@
+version: 2
+
+models:
+  - name: fct_market_metrics
+    description: >
+      One-minute market metrics for Grafana: OHLCV, VWAP, volume, bid-ask spread (from depth),
+      and short-horizon realized volatility from log close-to-close returns.
+    columns:
+      - name: exchange
+        description: Trading venue slug (e.g. binance, kraken).
+        tests:
+          - not_null
+      - name: symbol
+        description: Path-safe instrument symbol from bronze partitions.
+        tests:
+          - not_null
+      - name: metric_ts
+        description: UTC start of the one-minute bucket.
+        tests:
+          - not_null
+      - name: metric_date
+        description: UTC calendar date for the bucket; table partition column.
+        tests:
+          - not_null
+      - name: open
+        tests:
+          - not_null
+      - name: high
+        tests:
+          - not_null
+      - name: low
+        tests:
+          - not_null
+      - name: close
+        tests:
+          - not_null
+      - name: volume
+        description: Base-asset traded quantity in the minute.
+        tests:
+          - not_null
+      - name: vwap
+        description: Volume-weighted average trade price for the minute.
+        tests:
+          - not_null
+      - name: volatility
+        description: Sample standard deviation of the last 15 one-minute log returns (including the current minute).
+      - name: spread_bps
+        description: Average inside bid-ask spread in basis points of mid for the minute when depth is present.

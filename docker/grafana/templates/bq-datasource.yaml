@@ -1,0 +1,14 @@
+# Templated at container start: __GCP_PROJECT__ → $GCP_PROJECT_ID
+# Complete JWT in Grafana UI (Connections → Data sources → BigQuery) unless you inject secureJsonData yourself.
+apiVersion: 1
+datasources:
+  - name: BigQuery
+    uid: bq_tickvault
+    type: grafana-bigquery-datasource
+    access: proxy
+    isDefault: true
+    editable: true
+    jsonData:
+      authenticationType: jwt
+      defaultProject: __GCP_PROJECT__
+      defaultRegion: US

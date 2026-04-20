@@ -38,6 +38,20 @@ class OrderBookEvent(BaseModel):
     raw_event: dict
 
 
+class RestQuoteEvent(BaseModel):
+    """Periodic REST quote (CoinGecko, CryptoCompare) published to raw.* topics for bronze."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    venue: str = Field(..., min_length=1)
+    symbol: str = Field(..., min_length=1)
+    quote_id: str = Field(..., min_length=1)
+    event_ts_ms: int
+    price_usd: Decimal
+    ingest_ts: datetime
+    raw_event: dict
+
+
 class DlqEvent(BaseModel):
     model_config = ConfigDict(extra="allow")
 

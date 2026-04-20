@@ -145,6 +145,33 @@ services:
     entrypoint: ["/opt/flink/scripts/wait_and_submit.sh"]
     restart: "no"
 
+  # One-shot: MinIO → GCS (when Parquet exists) + BigQuery datasets + bronze external table.
+  # Enable with: docker compose --profile gcs up -d
+  # Or after the stack is up: docker compose --profile gcs run --rm gcs-pipeline
+  # Auth: mount uses host ~/.config/gcloud (gcloud auth login / application-default login / activate-service-account).
+  gcs-pipeline:
+    profiles:
+      - gcs
+    build:
+      context: .
+      dockerfile: docker/gcs-pipeline/Dockerfile
+    env_file:
+      - .env
+    environment:
+      USE_LOCAL_MC: "1"
+      MINIO_ENDPOINT: http://minio:9000
+      HOME: /root
+    depends_on:
+      minio:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
+    volumes:
+      - .:/repo:ro
+      - "${HOME}/.config/gcloud:/root/.config/gcloud:ro"
+    entrypoint: ["/bin/bash", "/repo/docker/gcs-pipeline/entrypoint.sh"]
+    restart: "no"
+
   producers:
     build:
       context: .
@@ -158,6 +185,33 @@ services:
       - .env
     command: ["python", "-m", "producers.main"]
     restart: unless-stopped
+
+  grafana:
+    profiles:
+      - grafana
+    image: grafana/grafana:11.3.0
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_ADMIN_PASSWORD:-admin}
+      GF_USERS_DEFAULT_THEME: dark
+      GF_INSTALL_PLUGINS: grafana-bigquery-datasource
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID:-your-gcp-project-id}
+    volumes:
+      - ./docker/grafana/templates:/etc/grafana/tickvault-templates:ro
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        mkdir -p /etc/grafana/provisioning/datasources /etc/grafana/provisioning/dashboards
+        sed "s/__GCP_PROJECT__/${GCP_PROJECT_ID}/g" /etc/grafana/tickvault-templates/bq-datasource.yaml > /etc/grafana/provisioning/datasources/bq.yaml
+        cp /etc/grafana/tickvault-templates/dashboards.yaml /etc/grafana/provisioning/dashboards/tickvault.yaml
+        exec /run.sh
 
 volumes:
   minio_data:

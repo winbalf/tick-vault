@@ -1,0 +1,40 @@
+# Copy to ~/.dbt/profiles.yml (merge the tick_vault output) or set DBT_PROFILES_DIR to this repo's
+# `dbt/` folder and copy this file to `profiles.yml` for local runs.
+#
+# dbt does not talk to GCS directly. Flow: dbt → BigQuery → external table `tickvault_bronze` → gs://…
+# Create that table from `infra/bigquery/bronze_external_tables.sql` (replace PROJECT, DATASET, BUCKET).
+# The same principal used here must be able to run BigQuery jobs and read bucket objects used by the
+# external table (typically roles/bigquery.jobUser plus dataset roles, and roles/storage.objectViewer
+# on the bronze bucket or finer-grained custom).
+#
+# Auth:
+# - dev_oauth: `gcloud auth application-default login`
+# - dev_sa: set GCP_PROJECT_ID and GOOGLE_APPLICATION_CREDENTIALS (path to the SA JSON) in your shell
+#   before `dbt run` (e.g. `set -a && source ../.env && set +a` if you keep those vars in `.env`).
+# Set `target: dev_sa` below when using those env vars.
+
+tick_vault:
+  target: dev_oauth
+  outputs:
+    dev_oauth:
+      type: bigquery
+      method: oauth
+      project: your-gcp-project-id
+      dataset: tickvault_silver
+      threads: 4
+      timeout_seconds: 300
+      location: US
+      priority: interactive
+      retries: 1
+
+    dev_sa:
+      type: bigquery
+      method: service-account
+      project: "{{ env_var('GCP_PROJECT_ID') }}"
+      keyfile: "{{ env_var('GOOGLE_APPLICATION_CREDENTIALS') }}"
+      dataset: tickvault_silver
+      threads: 4
+      timeout_seconds: 300
+      location: US
+      priority: interactive
+      retries: 1
