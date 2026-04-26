@@ -161,6 +161,8 @@ services:
       USE_LOCAL_MC: "1"
       MINIO_ENDPOINT: http://minio:9000
       HOME: /root
+      # Writable dir; host ~/.config/gcloud is mounted read-only at /gcloud-ro and copied in entrypoint.
+      CLOUDSDK_CONFIG: /tmp/gcloud-config
     depends_on:
       minio:
         condition: service_started
@@ -168,7 +170,7 @@ services:
         condition: service_completed_successfully
     volumes:
       - .:/repo:ro
-      - "${HOME}/.config/gcloud:/root/.config/gcloud:ro"
+      - "${HOME}/.config/gcloud:/gcloud-ro:ro"
     entrypoint: ["/bin/bash", "/repo/docker/gcs-pipeline/entrypoint.sh"]
     restart: "no"
 
@@ -189,29 +191,27 @@ services:
   grafana:
     profiles:
       - grafana
-    image: grafana/grafana:11.3.0
+    build:
+      context: .
+      dockerfile: docker/grafana/Dockerfile
     ports:
       - "3000:3000"
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: ${GF_ADMIN_PASSWORD:-admin}
       GF_USERS_DEFAULT_THEME: dark
-      GF_INSTALL_PLUGINS: grafana-bigquery-datasource
+      GF_INSTALL_PLUGINS: grafana-bigquery-datasource 3.1.5
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
       GCP_PROJECT_ID: ${GCP_PROJECT_ID:-your-gcp-project-id}
+      GCP_CLIENT_EMAIL: ${GCP_CLIENT_EMAIL:-}
+      GCP_TOKEN_URI: ${GCP_TOKEN_URI:-https://oauth2.googleapis.com/token}
+      GOLD_DATASET: ${GOLD_DATASET:-tickvault_gold}
+      DLQ_ALERT_THRESHOLD: ${DLQ_ALERT_THRESHOLD:-25}
     volumes:
+      - ./keys/gcs.json:/etc/grafana/sa.json:ro
       - ./docker/grafana/templates:/etc/grafana/tickvault-templates:ro
       - ./docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
-    entrypoint:
-      - /bin/sh
-      - -c
-      - |
-        set -e
-        mkdir -p /etc/grafana/provisioning/datasources /etc/grafana/provisioning/dashboards
-        sed "s/__GCP_PROJECT__/${GCP_PROJECT_ID}/g" /etc/grafana/tickvault-templates/bq-datasource.yaml > /etc/grafana/provisioning/datasources/bq.yaml
-        cp /etc/grafana/tickvault-templates/dashboards.yaml /etc/grafana/provisioning/dashboards/tickvault.yaml
-        exec /run.sh
 
 volumes:
   minio_data:

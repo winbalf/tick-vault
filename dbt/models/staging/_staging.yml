@@ -2,7 +2,10 @@ version: 2
 
 models:
   - name: stg_trades
-    description: Typed trade ticks from bronze; deduped on exchange, symbol, trade_id; invalid rows removed.
+    description: >
+      Typed trade ticks from bronze; invalid rows removed. Deduplicated first on
+      Kafka identity (trade_key / topic|partition|offset) for duplicate bronze rows,
+      then on exchange, symbol, trade_id for at-least-once replays with new offsets.
     tests:
       - unique_column_combination:
           columns: ["trade_id", "event_ts"]

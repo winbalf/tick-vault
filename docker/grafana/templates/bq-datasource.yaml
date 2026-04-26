@@ -1,5 +1,5 @@
-# Templated at container start: __GCP_PROJECT__ → $GCP_PROJECT_ID
-# Complete JWT in Grafana UI (Connections → Data sources → BigQuery) unless you inject secureJsonData yourself.
+# Templated at container start from tickvault-entrypoint.sh (see docker/grafana/Dockerfile).
+# PEM is injected from /etc/grafana/sa.json; other fields from GCP_* env vars.
 apiVersion: 1
 datasources:
   - name: BigQuery
@@ -11,4 +11,8 @@ datasources:
     jsonData:
       authenticationType: jwt
       defaultProject: __GCP_PROJECT__
-      defaultRegion: US
+      clientEmail: __GCP_CLIENT_EMAIL__
+      tokenUri: __GCP_TOKEN_URI__
+    secureJsonData:
+      privateKey: |
+        @TICKVAULT_PEM@

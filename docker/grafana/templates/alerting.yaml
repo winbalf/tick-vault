@@ -1,0 +1,55 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: tickvault-pipeline-alerts
+    folder: Tick Vault
+    interval: 1m
+    rules:
+      - uid: tickvault-dlq-threshold
+        title: DLQ count above threshold
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: bq_tickvault
+            model:
+              datasource:
+                type: grafana-bigquery-datasource
+                uid: bq_tickvault
+              editorMode: code
+              format: 1
+              rawSql: "SELECT DATETIME(CURRENT_TIMESTAMP()) AS time, CAST(COALESCE(SUM(dead_letter_count), 0) AS FLOAT64) AS value FROM `__GCP_PROJECT__.__GOLD_DATASET__.fct_market_metrics` WHERE metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 5 MINUTE)"
+              refId: A
+          - refId: B
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              expression: A
+              reducer: last
+              refId: B
+              settings:
+                mode: dropNN
+              type: reduce
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              expression: B
+              refId: C
+              threshold: __DLQ_ALERT_THRESHOLD__
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 1m
+        annotations:
+          summary: DLQ volume exceeded threshold in the last 5 minutes.
+        labels:
+          pipeline: tick-vault
+          severity: warning

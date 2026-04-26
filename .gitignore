@@ -139,6 +139,17 @@ celerybeat.pid
 .env
 .envrc
 
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/terraform.tfvars
+terraform/crash.log
+terraform/override.tf
+terraform/override.tf.json
+*_override.tf
+*_override.tf.json
+
 # Service account keys (never commit JSON keys)
 keys/*.json
 .venv

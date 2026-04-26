@@ -1,0 +1,96 @@
+# Minimal Airflow (LocalExecutor) for Tick Vault batch lane: MinIO→GCS → BQ external table → dbt.
+# From repo root:
+#   export DOCKER_GID="$(stat -c '%g' /var/run/docker.sock)"   # Linux; macOS: stat -f '%g'
+#   docker compose -f airflow/docker-compose.yml up --build -d
+# UI: http://localhost:8085  (admin / admin)
+#
+# Requires: MinIO reachable at MINIO_ENDPOINT (default host :9000), Docker socket, ADC in ~/.config/gcloud,
+#           GCP_PROJECT_ID and GCS_BUCKET (e.g. in .env).
+
+x-airflow-common: &airflow-common
+  build:
+    context: ..
+    dockerfile: airflow/Dockerfile
+  env_file:
+    - ../.env
+  environment:
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CORE__FERNET_KEY: "plCKgCYdNfnxJpqRwA09GvgJzEpkuv7WJ9oagHQndHU="
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__API__AUTH_BACKENDS: airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session
+    TICKVAULT_ROOT: /opt/airflow/tickvault
+    GCP_PROJECT_ID: ${GCP_PROJECT_ID:-}
+    GCS_BUCKET: ${GCS_BUCKET:-}
+    MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://127.0.0.1:9000}
+    CLOUDSDK_CONFIG: /opt/airflow/gcloud-config
+    GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
+  volumes:
+    - ../:/opt/airflow/tickvault:rw
+    - ./dags:/opt/airflow/dags:ro
+    - airflow-logs:/opt/airflow/logs
+    - /var/run/docker.sock:/var/run/docker.sock
+    - ${HOME}/.config/gcloud:/opt/airflow/gcloud-config:ro
+  user: "${AIRFLOW_UID:-50000}:0"
+  group_add:
+    - "${DOCKER_GID:?Set DOCKER_GID to the gid of /var/run/docker.sock (see header comment)}"
+
+services:
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      retries: 5
+
+  airflow-init:
+    <<: *airflow-common
+    group_add: []
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        set -e
+        airflow db migrate
+        airflow users create --username admin --firstname Admin --lastname User --role Admin \
+          --email admin@example.com --password admin 2>/dev/null || true
+
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8085:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+
+volumes:
+  postgres-db-volume:
+  airflow-logs:

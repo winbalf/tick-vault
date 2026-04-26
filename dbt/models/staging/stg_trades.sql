@@ -47,7 +47,7 @@ parsed as (
   from bronze
 ),
 
-deduped as (
+filtered as (
   select
     *
   from parsed
@@ -59,6 +59,25 @@ deduped as (
     and symbol is not null
     and price > 0
     and quantity > 0
+),
+
+-- Bronze can contain duplicate rows for the same Kafka record (e.g. overlapping
+-- external table paths / at-least-once duplicates). Collapse those first so
+-- trade_key stays unique, then keep one row per logical trade for OHLCV.
+dedup_kafka as (
+  select
+    *
+  from filtered
+  qualify row_number() over (
+    partition by trade_key
+    order by ingest_ts desc, event_ts desc
+  ) = 1
+),
+
+deduped as (
+  select
+    *
+  from dedup_kafka
   qualify row_number() over (
     partition by exchange, symbol, trade_id
     order by kafka_offset desc, kafka_partition desc, kafka_topic desc

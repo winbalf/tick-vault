@@ -1,0 +1,11 @@
+# Copy to terraform.tfvars (gitignored) and edit.
+# project_id     = "my-gcp-project"
+# bucket_name    = "my-unique-tickvault-bucket"
+# bucket_location = "US"
+# bq_location    = "US"
+#
+# Optional: grant a workload SA used by dbt / Airflow in CI:
+# pipeline_service_account_email = "tickvault-pipeline@my-gcp-project.iam.gserviceaccount.com"
+#
+# First-time project setup (enables APIs; needs org policy / billing):
+# enable_project_apis = true

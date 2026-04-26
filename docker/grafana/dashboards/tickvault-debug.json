@@ -1,0 +1,402 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "graphTooltip": 0,
+  "panels": [
+    {
+      "datasource": {
+        "type": "grafana-bigquery-datasource",
+        "uid": "bq_tickvault"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red"
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "bq_tickvault"
+          },
+          "editorMode": "code",
+          "format": 0,
+          "rawSql": "SELECT CURRENT_TIMESTAMP() AS time, CAST(1 AS FLOAT64) AS bq_connection_ok",
+          "refId": "A"
+        }
+      ],
+      "title": "BigQuery connection",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-bigquery-datasource",
+        "uid": "bq_tickvault"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "bq_tickvault"
+          },
+          "editorMode": "code",
+          "format": 0,
+          "rawSql": "SELECT CURRENT_TIMESTAMP() AS time, CAST(COUNTIF(table_name = 'fct_market_metrics') AS FLOAT64) AS table_exists FROM `${gold_dataset}.INFORMATION_SCHEMA.TABLES`",
+          "refId": "A"
+        }
+      ],
+      "title": "fct_market_metrics exists",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-bigquery-datasource",
+        "uid": "bq_tickvault"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "bq_tickvault"
+          },
+          "editorMode": "code",
+          "format": 0,
+          "rawSql": "SELECT CURRENT_TIMESTAMP() AS time, CAST(COUNT(*) AS FLOAT64) AS rows_2d FROM `${gold_dataset}.fct_market_metrics` WHERE metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY)",
+          "refId": "A"
+        }
+      ],
+      "title": "Rows in last 2d",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-bigquery-datasource",
+        "uid": "bq_tickvault"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "bq_tickvault"
+          },
+          "editorMode": "code",
+          "format": 0,
+          "rawSql": "SELECT CURRENT_TIMESTAMP() AS time, CAST(TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), MAX(metric_ts), SECOND) AS FLOAT64) AS freshness_lag_seconds FROM `${gold_dataset}.fct_market_metrics`",
+          "refId": "A"
+        }
+      ],
+      "title": "Freshness lag (seconds)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-bigquery-datasource",
+        "uid": "bq_tickvault"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 8
+      },
+      "id": 7,
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "bq_tickvault"
+          },
+          "editorMode": "code",
+          "format": 0,
+          "rawSql": "SELECT CURRENT_TIMESTAMP() AS time, CAST(UNIX_SECONDS(MAX(metric_ts)) AS FLOAT64) AS latest_metric_ts_epoch FROM `${gold_dataset}.fct_market_metrics`",
+          "refId": "A"
+        }
+      ],
+      "title": "Latest metric_ts (epoch)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-bigquery-datasource",
+        "uid": "bq_tickvault"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 8
+      },
+      "id": 8,
+      "options": {
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "bq_tickvault"
+          },
+          "editorMode": "code",
+          "format": 0,
+          "rawSql": "SELECT CURRENT_TIMESTAMP() AS time, CAST(COUNT(*) AS FLOAT64) AS total_rows FROM `${gold_dataset}.fct_market_metrics`",
+          "refId": "A"
+        }
+      ],
+      "title": "Total rows in table",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "grafana-bigquery-datasource",
+        "uid": "bq_tickvault"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 5,
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "bq_tickvault"
+          },
+          "editorMode": "code",
+          "format": 0,
+          "rawSql": "SELECT exchange, symbol, COUNT(*) AS rows_2d, MAX(metric_ts) AS latest_ts FROM `${gold_dataset}.fct_market_metrics` WHERE metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) GROUP BY 1, 2 ORDER BY rows_2d DESC",
+          "refId": "A"
+        }
+      ],
+      "title": "Rows by exchange/symbol (2d)",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "grafana-bigquery-datasource",
+        "uid": "bq_tickvault"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "id": 6,
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "bq_tickvault"
+          },
+          "editorMode": "code",
+          "format": 0,
+          "rawSql": "SELECT metric_ts, exchange, symbol, close, volume, spread_bps, volatility, dead_letter_count FROM `${gold_dataset}.fct_market_metrics` ORDER BY metric_ts DESC LIMIT 100",
+          "refId": "A"
+        }
+      ],
+      "title": "Latest 100 rows",
+      "type": "table"
+    }
+  ],
+  "refresh": "15s",
+  "schemaVersion": 39,
+  "tags": [
+    "tick-vault",
+    "debug",
+    "phase-5"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": "tickvault_gold",
+          "value": "tickvault_gold"
+        },
+        "label": "Gold dataset",
+        "name": "gold_dataset",
+        "options": [
+          {
+            "selected": true,
+            "text": "tickvault_gold",
+            "value": "tickvault_gold"
+          }
+        ],
+        "query": "tickvault_gold",
+        "type": "textbox"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-2d",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "Tick Vault — Debug BigQuery",
+  "uid": "tickvault-debug-bq",
+  "version": 1
+}

@@ -3,7 +3,6 @@
     "list": []
   },
   "editable": true,
-  "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
   "panels": [
     {
@@ -14,28 +13,13 @@
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "axisLabel": "Price",
-            "drawStyle": "line",
-            "lineWidth": 1
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
+            "axisLabel": "Spread (bps)"
           }
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 12,
+        "h": 11,
         "w": 24,
         "x": 0,
         "y": 0
@@ -46,10 +30,6 @@
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
         }
       },
       "targets": [
@@ -60,12 +40,12 @@
           },
           "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT DATETIME(metric_ts) AS time, CAST(open AS FLOAT64) AS open, CAST(high AS FLOAT64) AS high, CAST(low AS FLOAT64) AS low, CAST(close AS FLOAT64) AS close FROM `${gold_dataset}.fct_market_metrics` WHERE exchange = '${exchange}' AND symbol = '${symbol}' AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) ORDER BY 1",
+          "rawSql": "SELECT DATETIME(metric_ts) AS time, CONCAT(exchange, ':', symbol) AS metric, CAST(spread_bps AS FLOAT64) AS spread_bps FROM `${gold_dataset}.fct_market_metrics` WHERE spread_bps IS NOT NULL AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) ORDER BY 1",
           "refId": "A"
         }
       ],
-      "title": "Live candlestick",
-      "type": "candlestick"
+      "title": "Bid-ask spread over time",
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -75,19 +55,16 @@
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "axisLabel": "Volume",
-            "drawStyle": "bars",
-            "fillOpacity": 80
-          },
-          "mappings": []
+            "axisLabel": "Price"
+          }
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 10,
+        "h": 11,
         "w": 24,
         "x": 0,
-        "y": 12
+        "y": 11
       },
       "id": 2,
       "options": {
@@ -95,10 +72,6 @@
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
         }
       },
       "targets": [
@@ -109,11 +82,11 @@
           },
           "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT DATETIME(metric_ts) AS time, CONCAT(exchange, ':', symbol) AS metric, CAST(volume AS FLOAT64) AS volume FROM `${gold_dataset}.fct_market_metrics` WHERE metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) ORDER BY 1",
+          "rawSql": "SELECT DATETIME(metric_ts) AS time, 'vwap' AS metric, CAST(vwap AS FLOAT64) AS value FROM `${gold_dataset}.fct_market_metrics` WHERE exchange = '${exchange}' AND symbol = '${symbol}' AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) UNION ALL SELECT DATETIME(metric_ts) AS time, 'mid_price' AS metric, CAST(avg_mid_price AS FLOAT64) AS value FROM `${gold_dataset}.fct_market_metrics` WHERE exchange = '${exchange}' AND symbol = '${symbol}' AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) ORDER BY 1",
           "refId": "A"
         }
       ],
-      "title": "Live traded volume by symbol",
+      "title": "VWAP vs mid-price",
       "type": "timeseries"
     }
   ],
@@ -122,8 +95,8 @@
   "tags": [
     "tick-vault",
     "phase-5",
-    "price",
-    "volume"
+    "spread",
+    "vwap"
   ],
   "templating": {
     "list": [
@@ -187,8 +160,7 @@
     "from": "now-2d",
     "to": "now"
   },
-  "timezone": "browser",
-  "title": "Tick Vault — Live Price & Volume",
-  "uid": "tickvault-live-price-volume",
+  "title": "Tick Vault — Spread & VWAP",
+  "uid": "tickvault-spread-vwap",
   "version": 1
 }
