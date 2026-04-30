@@ -1,6 +1,62 @@
 # tick-vault
 
-Crypto market microstructure pipeline: consume raw order book snapshots and trade ticks over WebSockets, land every event in **bronze** (Parquet), then aggregate to **OHLCV**, bid–ask **spread**, and **volatility** in **silver/gold** via **dbt**. The gold mart feeds **Grafana** trading-style dashboards. Phases **1–5** below follow that curriculum. **Optional:** declarative GCP (**Terraform**) and scheduled batch steps (**Apache Airflow**) are documented at the end.
+Tick Vault is a crypto market microstructure data pipeline for analytics and monitoring. It consumes live exchange trades and order book snapshots, lands raw events in bronze Parquet, and builds silver/gold marts in BigQuery with dbt. The final gold mart powers Grafana dashboards for OHLCV, spread, volatility, and pipeline health.
+
+This project is built for learning and demonstrating end-to-end data engineering patterns: streaming ingestion, medallion modeling, data quality checks, and dashboard delivery. Start with the core local path first, then add optional GCP/Terraform/Airflow components if needed.
+
+## What you get
+
+- Live ingestion from Binance/Kraken (plus optional CoinGecko/CryptoCompare REST quotes).
+- Bronze layer in Parquet with Hive-style partitions for scalable query pruning.
+- dbt silver/gold models including OHLCV, spread, VWAP, and volatility metrics.
+- Grafana dashboards for market behavior and pipeline reliability.
+- Quality guardrails: producer validation, DLQ routing, dbt tests, freshness checks.
+
+## Core path vs optional paths
+
+**Core path (recommended first):**
+
+- Docker local stack (Redpanda, Flink, MinIO, producers).
+- Bronze Parquet in MinIO.
+- dbt silver/gold in BigQuery.
+- Grafana dashboards over gold models.
+
+**Optional paths:**
+
+- GCP sync/bootstrap flow for bronze external tables on GCS (`gcs-pipeline` or scripts).
+- Terraform for declarative GCS/BigQuery/IAM provisioning.
+- Airflow for scheduled bronze->GCS->BigQuery->dbt orchestration.
+
+## Quick start (15 minutes)
+
+```bash
+cp .env.example .env
+docker compose up --build -d
+docker compose up -d minio minio-init redpanda topic-init flink-jobmanager flink-taskmanager
+docker compose --profile bronze run --rm flink-submit-bronze
+./scripts/bronze_to_gcs_and_bq.sh
+./scripts/dbt_build.sh
+docker compose --profile grafana up --build -d grafana
+```
+
+Open:
+
+- Redpanda Console: `http://localhost:8080`
+- Flink UI: `http://localhost:8081`
+- MinIO Console: `http://localhost:9001`
+- Grafana: `http://localhost:3000`
+
+Use `./scripts/run_end_to_end.sh` for a single wrapper command after `.env` is configured. For a full narrative of each step (flags, auth, “what happens next”), see **[`TESTING_README.md`](TESTING_README.md)**.
+
+## Success checklist
+
+Done means:
+
+- Producers are publishing to `raw.trades.v1` / `raw.depth.v1` (check Redpanda Console).
+- Flink bronze job is running and Parquet appears under `bronze/` in MinIO.
+- Bronze is synced to `gs://$GCS_BUCKET/bronze/` and BigQuery bronze external table is queryable (optional path).
+- `./scripts/dbt_build.sh` completes and updates silver/gold models.
+- Grafana dashboards show recent rows and acceptable freshness lag.
 
 ## Architecture
 
@@ -54,6 +110,11 @@ flowchart LR
   BRZ --> SYNC --> GCS --> BQ1 --> DBT --> BQ2 --> GF
 ```
 
+## Glossary
+
+- **Terms and abbreviations** (OHLCV, DLQ, medallion layers, GCP pieces, dbt `stg_` / `int_` / `fct_` prefixes, etc.): **[`docs/GLOSSARY.md`](docs/GLOSSARY.md)**.
+- **Grafana in this repo** (BigQuery JWT, `.env` keys, dashboards list, DLQ alert, local security notes): **[`docker/grafana/README.md`](docker/grafana/README.md)** — curriculum context in [Phase 5](#phase-5--grafana-dashboards--reporting) below.
+
 ## Phase 1 — Environment setup & source connection
 
 **Goal:** Live exchange connectivity into Kafka with contracts and resilience.
@@ -78,20 +139,16 @@ flowchart LR
 
 **Deliverable:** Valid ticks and depth snapshots on Redpanda topics; malformed payloads routed to **`dlq.trades`**; reconnect with exponential backoff on WebSocket drops.
 
-## Quickstart
+## Non-goals
 
-1. Copy env file:
-   - `cp .env.example .env`
-2. Start stack:
-   - `docker compose up --build`
-   - **Optional (GCP):** after `gcloud auth application-default login` (or service-account auth in `~/.config/gcloud`) and `GCP_PROJECT_ID` / `GCS_BUCKET` in `.env`, bring the stack up **with** the GCS profile so a one-shot job syncs bronze when Parquet exists and registers BigQuery: `docker compose --profile gcs up --build -d`. Re-run the job any time with `docker compose --profile gcs run --rm gcs-pipeline`. See **Phase 2**.
-3. Verify services:
-   - Redpanda Console: `http://localhost:8080`
-   - Flink UI: `http://localhost:8081`
-   - MinIO Console: `http://localhost:9001` (minioadmin/minioadmin)
+- Not a low-latency trade execution engine or HFT platform.
+- Not financial advice or a strategy backtesting framework.
+- Not a fully managed production platform out of the box; security hardening and ops controls are environment-specific.
 
 ## Project structure
 
+- `docs/GLOSSARY.md` — **terms and abbreviations** used in docs and code (OHLCV, DLQ, S3A, medallion layers, …)
+- `TESTING_README.md` — **step-by-step runbooks** (commands, flags, troubleshooting, end-to-end checklist); root README defers here for that material
 - `docker-compose.yml` - local streaming stack orchestration
 - `docker/` - producer and Flink Dockerfiles
 - `docker/flink/` - Flink image (Kafka + Parquet + S3/GS plugins) and bronze job submit script
@@ -105,7 +162,7 @@ flowchart LR
 - `scripts/dbt_run_pipeline.sh` - `dbt deps` + `dbt run` for schedulers (Airflow); interactive checks stay in `dbt_build.sh`
 - `scripts/dbt_build.sh` - `dbt debug` + `dbt build` with optional `.env` and local `dbt/profiles.yml`
 - `.github/workflows/dbt.yml` - CI: `dbt parse` and docs with empty catalog
-- `docker/grafana/` - Grafana provisioning (BigQuery datasource template + sample dashboard)
+- `docker/grafana/` — Grafana provisioning (BigQuery datasource, dashboards, alerts); **how-to:** [`docker/grafana/README.md`](docker/grafana/README.md)
 - `infra/gcs/` - GCS lifecycle (90-day bronze prefix) helper
 - `infra/bigquery/` - medallion dataset bootstrap (`apply_datasets.sh`), `apply_bronze_external_table.sh`, and console DDL (`bronze_external_tables.sql`)
 - `terraform/` - **Optional** IaC: GCS bucket, BigQuery datasets, bronze external table, IAM (see `terraform/README.md`)
@@ -169,19 +226,9 @@ flink jm/tm ---------> PyFlink bronze job (submit via `flink-submit-bronze` serv
 
 ### Verify MinIO bronze data
 
-With the stack running (`docker compose up -d` including MinIO), list objects under the `tick-vault` bucket:
+With the stack running, confirm objects under bucket **tick-vault**, prefix **bronze/** (MinIO Console at `http://localhost:9001`, or the `mc` one-liner in **[`TESTING_README.md`](TESTING_README.md#7-verify-bronze-parquet-in-minio)** §7).
 
-```bash
-docker run --rm --network host --entrypoint /bin/sh minio/mc:RELEASE.2024-08-26T10-49-58Z \
-  -c 'mc alias set local http://127.0.0.1:9000 minioadmin minioadmin && mc ls -r local/tick-vault/bronze | head -50'
-```
-
-Or open **MinIO Console** at `http://localhost:9001` (same credentials as in `docker-compose.yml`), bucket **tick-vault**, prefix **bronze/**.
-
-**Submit the job** (JobManager and TaskManagers must already be up):
-
-- `docker compose up -d minio minio-init redpanda topic-init flink-jobmanager flink-taskmanager`
-- `docker compose --profile bronze run --rm flink-submit-bronze` (detached `flink run -d`; job keeps running on the cluster; profile avoids auto-submit on every `docker compose up`)
+**Submit the job** (JobManager and TaskManagers must already be up): see **[`TESTING_README.md`](TESTING_README.md#6-start-the-flink-bronze-consumer-kafka--minio-parquet)** §6 — `docker compose --profile bronze run --rm flink-submit-bronze` (detached `flink run -d`; profile avoids auto-submit on every `docker compose up`).
 
 **One bronze job per cluster:** each `flink-submit-bronze` run starts another `bronze_parquet` job. Only one should write to the same sink and checkpoint paths; extra jobs fight for resources and can sit in `RESTARTING` with failed tasks. Before submitting again, cancel stale jobs in the Flink UI (`http://localhost:8081`) or with `curl -X PATCH "http://localhost:8081/jobs/<jobId>?mode=cancel"` (use the job id from **Running Jobs**).
 
@@ -189,26 +236,9 @@ Or open **MinIO Console** at `http://localhost:9001` (same credentials as in `do
 
 ### GCP path from local MinIO (automated)
 
-BigQuery bronze in this repo is an **external table** over **`gs://$GCS_BUCKET/bronze/*`** (with Hive partition discovery under that prefix), so GCS is part of the path whenever you use that pattern (local MinIO is still the Flink sink until you change `BRONZE_SINK_BASE`).
+BigQuery bronze in this repo is an **external table** over **`gs://$GCS_BUCKET/bronze/*`** (Hive partition discovery). **Ways to sync and bootstrap:** Compose profile **`gcs`** (`gcs-pipeline`), or host scripts **`./scripts/bronze_to_gcs_and_bq.sh`**, **`./scripts/sync_bronze_minio_to_gcs.sh`** + **`./scripts/phase2_gcp_bootstrap.sh`**, **`./scripts/test_gcs_bronze_connection.sh`**. Auth, upload-when-empty behavior, and `gcs-pipeline` vs host: **[`TESTING_README.md`](TESTING_README.md#8-optional-path--gcs--bigquery-bronze)** §8 (and §4 for `gcs` on `compose up`).
 
-**A) Compose profile `gcs` (recommended when developing with Docker):**
-
-1. Authenticate on the **host** so credentials live under `~/.config/gcloud` (for example `gcloud auth application-default login` and/or `gcloud auth login`). The `gcs-pipeline` container bind-mounts that directory **read-only** at `/gcloud-ro` and copies it into a writable `CLOUDSDK_CONFIG` inside the container so `gcloud` can update local state.
-2. Set `GCP_PROJECT_ID` and `GCS_BUCKET` in `.env` (bucket name only, no `gs://`).
-3. Optional: `GCS_PIPELINE_WAIT_SECONDS=120` in `.env` to wait before syncing (gives Flink/producers time after `compose up`).
-4. Start the stack **with** the profile: `docker compose --profile gcs up --build -d`. The **`gcs-pipeline`** service runs once: mirror from MinIO, **upload to GCS only if at least one Parquet file exists** (otherwise it skips upload but still continues), then creates BigQuery datasets and the bronze external table.
-5. Any time you need to push fresh bronze to GCS and refresh metadata: `docker compose --profile gcs run --rm gcs-pipeline`.
-
-**B) Host scripts (same behavior, uses Docker only for `mc` unless `USE_LOCAL_MC=1`):**
-
-1. Authenticate for GCS and BigQuery (`gcloud auth application-default login` or a service account with Storage write + BigQuery jobs/data admin as needed).
-2. Put `GCP_PROJECT_ID` and `GCS_BUCKET` in `.env` (bucket name only, no `gs://`; avoid trailing spaces) or export them in your shell.
-3. **Check GCS:** `./scripts/test_gcs_bronze_connection.sh` — reads `.env`, describes the bucket, and lists objects under `gs://$GCS_BUCKET/bronze/`.
-4. **Sync + BigQuery in one step:** `./scripts/bronze_to_gcs_and_bq.sh` (skips GCS upload when the MinIO mirror has no Parquet unless you set `SKIP_GCS_UPLOAD_IF_NO_PARQUET=0`). For a forced rsync even when the mirror is empty, run `SKIP_GCS_UPLOAD_IF_NO_PARQUET=0 ./scripts/bronze_to_gcs_and_bq.sh`.
-5. **Upload only:** `./scripts/sync_bronze_minio_to_gcs.sh` (optional: `MINIO_ENDPOINT`, `DOCKER_MC_NETWORK`, keys; Docker `mc` + `gcloud storage rsync` or `gsutil`).
-6. **Datasets + external table only:** `./scripts/phase2_gcp_bootstrap.sh`.
-
-Manual alternative: edit and run `infra/bigquery/bronze_external_tables.sql` in the console or `bq query`.
+Manual alternative: `infra/bigquery/bronze_external_tables.sql` in the console or `bq query`.
 
 ### Bronze Parquet columns (queryable + pruning keys)
 
@@ -284,9 +314,11 @@ Gold mart columns include `metric_ts`, `metric_date` (partition), `open`, `high`
 
 **Goal:** Trading-style views on the gold mart, provisioned from code.
 
+**Docs:** Step-by-step start (keys, `sync_grafana_env_from_sa.py`, compose): **[`TESTING_README.md`](TESTING_README.md#10-grafana-dashboards)** §10. Provisioning, JWT env, and alert tuning: **[`docker/grafana/README.md`](docker/grafana/README.md)**. Dashboard metrics (OHLCV, VWAP, bps, DLQ, …): **[`docs/GLOSSARY.md`](docs/GLOSSARY.md)**.
+
 **In repo:**
 
-- **Grafana** via `docker compose --profile grafana up -d grafana` → **`http://localhost:3000`** (default `GF_ADMIN_PASSWORD` or `admin`; anonymous Admin is **local convenience only**—see `docker/grafana/README.md`).
+- **Grafana** via `docker compose --profile grafana up -d grafana` → **`http://localhost:3000`** (default `GF_ADMIN_PASSWORD` or `admin`; anonymous Admin is **local convenience only**—see [`docker/grafana/README.md`](docker/grafana/README.md)).
 - **BigQuery** datasource plugin; JWT (or your org’s auth) configured in the UI after provisioning templates.
 - **Dashboards (JSON under `docker/grafana/dashboards/`):**
   - **`tickvault-overview.json`** — live OHLC candlestick and volume-style views.
@@ -294,111 +326,15 @@ Gold mart columns include `metric_ts`, `metric_date` (partition), `open`, `high`
   - **`tickvault-volatility-heatmap.json`** — volatility by time × symbol.
   - **`tickvault-pipeline-health.json`** — DLQ counts, freshness-style signals, row counts.
   - **`tickvault-debug.json`** — extra diagnostics for development.
-- **Alerting:** `docker/grafana/templates/alerting.yaml` includes a **DLQ threshold** rule (templated; wire `DLQ_ALERT_THRESHOLD` / datasource in Compose as documented in `docker/grafana/README.md`).
+- **Alerting:** `docker/grafana/templates/alerting.yaml` includes a **DLQ threshold** rule (templated; wire `DLQ_ALERT_THRESHOLD` / datasource in Compose as documented in [`docker/grafana/README.md`](docker/grafana/README.md)).
 
 **Deliverable:** Dashboards load on `compose up` with provisioning; DLQ alert can fire when recent **`dead_letter_count`** exceeds the configured threshold (after BigQuery auth is completed).
 
-## Repeatable runbook (Docker build → GCS → Grafana)
+## Runbooks and command walkthroughs
 
-Use this sequence whenever you want the same end-to-end result from local bronze data to Grafana dashboards.
+**Canonical step-by-step** (what each command does, GCP auth, Grafana JWT sync, forced rsync, troubleshooting, copy-paste checklist): **[`TESTING_README.md`](TESTING_README.md)** — especially §§1–12 and the end checklist.
 
-### 0) One-time setup
-
-```bash
-cp .env.example .env
-# Edit .env and set at least:
-# - GCP_PROJECT_ID
-# - GCS_BUCKET
-# - GOOGLE_APPLICATION_CREDENTIALS (absolute path to SA JSON, optional if using ADC)
-```
-
-If you have a service-account file at `keys/gcs.json`, sync Grafana JWT env keys:
-
-```bash
-python3 scripts/sync_grafana_env_from_sa.py --sa-json keys/gcs.json --env-file .env
-```
-
-Authenticate (choose one):
-
-```bash
-gcloud auth application-default login
-# or:
-gcloud auth activate-service-account --key-file "$GOOGLE_APPLICATION_CREDENTIALS"
-```
-
-### 1) Build and start core stack
-
-```bash
-docker compose up --build -d
-```
-
-Start/submit the bronze Flink job (once per cluster run):
-
-```bash
-docker compose up -d minio minio-init redpanda topic-init flink-jobmanager flink-taskmanager
-docker compose --profile bronze run --rm flink-submit-bronze
-```
-
-### 2) Push bronze data to GCS and register BigQuery bronze external table
-
-```bash
-./scripts/test_gcs_bronze_connection.sh
-./scripts/bronze_to_gcs_and_bq.sh
-```
-
-If you need a forced rsync attempt even when no Parquet is detected yet:
-
-```bash
-SKIP_GCS_UPLOAD_IF_NO_PARQUET=0 ./scripts/bronze_to_gcs_and_bq.sh
-```
-
-### 3) Build silver/gold models (for Grafana)
-
-```bash
-./scripts/dbt_build.sh
-```
-
-### 4) Start Grafana and open dashboards
-
-```bash
-docker compose --profile grafana up --build -d grafana
-```
-
-Open:
-- `http://localhost:3000` (Grafana)
-- dashboards: Tick Vault overview / spread-vwap / volatility heatmap / pipeline health
-
-### 5) Repeat quickly on future runs
-
-When the stack is already built and running:
-
-```bash
-./scripts/bronze_to_gcs_and_bq.sh
-./scripts/dbt_build.sh
-docker compose --profile grafana up -d grafana
-```
-
-Or run the full wrapper script:
-
-```bash
-./scripts/run_end_to_end.sh
-```
-
-Useful flags:
-- `--no-build` (skip `docker compose up --build -d`)
-- `--no-bronze-submit` (if bronze job is already running)
-- `--skip-gcs-test` (skip connectivity check)
-- `--force-rsync` (runs bronze sync with `SKIP_GCS_UPLOAD_IF_NO_PARQUET=0`)
-- `--no-grafana` (skip Grafana startup)
-- `--dry-run` (print commands only; do not execute)
-
-### End-to-end checklist (Phases 1–5)
-
-1. `docker compose up -d` (producers, Flink, MinIO; submit bronze with `--profile bronze` when ready).
-2. Confirm Parquet under MinIO (`bronze/` prefix).
-3. `export GCP_PROJECT_ID=... GCS_BUCKET=...` → `./scripts/bronze_to_gcs_and_bq.sh` (or `SKIP_GCS_UPLOAD_IF_NO_PARQUET=0 ./scripts/bronze_to_gcs_and_bq.sh` if you need an rsync attempt while bronze is still empty).
-4. Copy `dbt/profiles.yml.example` to `dbt/profiles.yml` (or `~/.dbt/profiles.yml`), set project and auth → `./scripts/dbt_build.sh`.
-5. `docker compose --profile grafana up -d grafana` → add BigQuery JWT → open the Tick Vault dashboards.
+**One-shot wrapper** (expects `GCP_PROJECT_ID` and `GCS_BUCKET` in `.env`): `./scripts/run_end_to_end.sh` — options: `--no-build`, `--no-bronze-submit`, `--skip-gcs-test`, `--force-rsync`, `--no-grafana`, `--dry-run` (see `scripts/run_end_to_end.sh`).
 
 ## Optional — Terraform & Apache Airflow (operations)
 

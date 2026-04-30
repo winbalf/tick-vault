@@ -1,5 +1,13 @@
 # Grafana (Tick Vault)
 
+**See also**
+
+- Project overview and Phase 5 (where Grafana fits): [`README.md`](../../README.md#phase-5--grafana-dashboards--reporting)
+- Terminology used in dashboards and docs (OHLCV, VWAP, bps, DLQ, …): [`docs/GLOSSARY.md`](../../docs/GLOSSARY.md)
+- Command walkthrough (keys, `sync_grafana_env_from_sa.py`, compose): [`TESTING_README.md` §10 — Grafana dashboards](../../TESTING_README.md#10-grafana-dashboards)
+
+---
+
 The Compose service `grafana` (profile `grafana`) installs the official **BigQuery** data source plugin, provisions the datasource, auto-loads dashboards from `docker/grafana/dashboards`, and provisions alert rules.
 
 1. Start with a real project id and JWT settings in `.env` or your shell:

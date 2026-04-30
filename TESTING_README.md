@@ -1,12 +1,16 @@
 # Tick Vault — end-to-end testing guide
 
-This document walks you from **zero** through **live exchange data → Kafka (Redpanda) → Flink (bronze consumer) → object storage → (optional) GCS/BigQuery → dbt → Grafana dashboards**, and explains **what each command does after it finishes**, especially when you want **new or refreshed data** at each layer. Optional **Terraform** (`terraform/`) and **Airflow** (`airflow/`) paths are documented in the sections below and in the main README.
+**Canonical runbook:** use this file for **command-by-command** flows, **what happens after each step**, **new vs refreshed data** at each layer, troubleshooting, and the **copy-paste checklist** at the end. The root [`README.md`](README.md) keeps architecture, phased curriculum, data contracts, and SQL snippets—it links here instead of duplicating long runbooks. Unfamiliar abbreviations (DLQ, OHLCV, GCS, …): [`docs/GLOSSARY.md`](docs/GLOSSARY.md).
 
-For architecture and model details, see the main [`README.md`](README.md). **Reference pairs** (Binance / Kraken / REST presets) live in [§5](#5-changing-symbols-or-forcing-a-producer-restart) under *Reference pairs*.
+This document walks you from **zero** through **live exchange data → Kafka (Redpanda) → Flink (bronze) → object storage → (optional) GCS/BigQuery → dbt → Grafana**. Optional **Terraform** and **Airflow** are summarized in §8 and §11; full detail lives in [`terraform/README.md`](terraform/README.md) and [`airflow/README.md`](airflow/README.md).
+
+**Reference pairs** (Binance / Kraken / REST presets): [§5](#5-changing-symbols-or-forcing-a-producer-restart).
 
 ---
 
 ## How the pipeline fits together
+
+At-a-glance flow (diagram and optional GCP path: root [`README.md`](README.md) — Architecture):
 
 ```text
 Exchanges (Binance WS, Kraken WS, optional REST quotes)
@@ -402,4 +406,4 @@ docker compose --profile grafana up -d --build grafana
 7. `./scripts/dbt_build.sh`.  
 8. Place **`keys/gcs.json`**, `python3 scripts/sync_grafana_env_from_sa.py`, then `docker compose --profile grafana up -d --build grafana` → **`http://localhost:3000`**.
 
-You now have a single document that ties **commands → system state → where “new data” comes from** at every layer.
+That checklist matches the root README’s high-level success criteria without repeating the long runbook there.
