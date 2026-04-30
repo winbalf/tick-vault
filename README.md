@@ -1,6 +1,6 @@
 # tick-vault
 
-Crypto market microstructure pipeline: consume raw order book snapshots and trade ticks over WebSockets, land every event in **bronze** (Parquet), then aggregate to **OHLCV**, bid–ask **spread**, and **volatility** in **silver/gold** via **dbt**. The gold mart feeds **Grafana** trading-style dashboards. Phases **1–5** below follow that curriculum. **Optional:** declarative GCP (**Terraform**) and scheduled batch steps (**Apache Airflow**) are documented at the end—they are **not** part of the numbered phases.
+Crypto market microstructure pipeline: consume raw order book snapshots and trade ticks over WebSockets, land every event in **bronze** (Parquet), then aggregate to **OHLCV**, bid–ask **spread**, and **volatility** in **silver/gold** via **dbt**. The gold mart feeds **Grafana** trading-style dashboards. Phases **1–5** below follow that curriculum. **Optional:** declarative GCP (**Terraform**) and scheduled batch steps (**Apache Airflow**) are documented at the end.
 
 ## Architecture
 
@@ -259,7 +259,7 @@ Medallion models read the bronze external table (`tickvault_bronze`), materializ
 **Run**
 
 - From repo root: `./scripts/dbt_build.sh` (sources `.env` if present; uses `dbt/profiles.yml` when `DBT_PROFILES_DIR` is unset and that file exists). For **Apache Airflow** (optional appendix), the DAG calls **`./scripts/dbt_run_pipeline.sh`**. Or: `cd dbt && dbt run` then `dbt test`.
-- Models built: `stg_trades`, `stg_depth`, `int_ohlcv_1m`, `int_depth_1m`, and `fct_market_metrics` (partitioned by `metric_date`, clustered by `symbol` and `exchange`).
+- Models built: `stg_trades`, `stg_depth`, `stg_rest_quotes`, `int_ohlcv_1m`, `int_depth_1m`, `int_rest_quotes_1m`, and `fct_market_metrics` (partitioned by `metric_date`, clustered by `symbol` and `exchange`).
 - Documentation: `cd dbt && dbt docs generate` (with credentials, BigQuery fills `catalog.json`). Without warehouse access: `dbt parse && dbt docs generate --no-compile --empty-catalog`. Then `dbt docs serve`.
 
 **Deliverable:** Full medallion dbt project; gold **`fct_market_metrics`** partitioned and clustered for Grafana. dbt docs can be generated locally or in CI (parse/docs without warehouse).
@@ -298,6 +298,100 @@ Gold mart columns include `metric_ts`, `metric_date` (partition), `open`, `high`
 
 **Deliverable:** Dashboards load on `compose up` with provisioning; DLQ alert can fire when recent **`dead_letter_count`** exceeds the configured threshold (after BigQuery auth is completed).
 
+## Repeatable runbook (Docker build → GCS → Grafana)
+
+Use this sequence whenever you want the same end-to-end result from local bronze data to Grafana dashboards.
+
+### 0) One-time setup
+
+```bash
+cp .env.example .env
+# Edit .env and set at least:
+# - GCP_PROJECT_ID
+# - GCS_BUCKET
+# - GOOGLE_APPLICATION_CREDENTIALS (absolute path to SA JSON, optional if using ADC)
+```
+
+If you have a service-account file at `keys/gcs.json`, sync Grafana JWT env keys:
+
+```bash
+python3 scripts/sync_grafana_env_from_sa.py --sa-json keys/gcs.json --env-file .env
+```
+
+Authenticate (choose one):
+
+```bash
+gcloud auth application-default login
+# or:
+gcloud auth activate-service-account --key-file "$GOOGLE_APPLICATION_CREDENTIALS"
+```
+
+### 1) Build and start core stack
+
+```bash
+docker compose up --build -d
+```
+
+Start/submit the bronze Flink job (once per cluster run):
+
+```bash
+docker compose up -d minio minio-init redpanda topic-init flink-jobmanager flink-taskmanager
+docker compose --profile bronze run --rm flink-submit-bronze
+```
+
+### 2) Push bronze data to GCS and register BigQuery bronze external table
+
+```bash
+./scripts/test_gcs_bronze_connection.sh
+./scripts/bronze_to_gcs_and_bq.sh
+```
+
+If you need a forced rsync attempt even when no Parquet is detected yet:
+
+```bash
+SKIP_GCS_UPLOAD_IF_NO_PARQUET=0 ./scripts/bronze_to_gcs_and_bq.sh
+```
+
+### 3) Build silver/gold models (for Grafana)
+
+```bash
+./scripts/dbt_build.sh
+```
+
+### 4) Start Grafana and open dashboards
+
+```bash
+docker compose --profile grafana up --build -d grafana
+```
+
+Open:
+- `http://localhost:3000` (Grafana)
+- dashboards: Tick Vault overview / spread-vwap / volatility heatmap / pipeline health
+
+### 5) Repeat quickly on future runs
+
+When the stack is already built and running:
+
+```bash
+./scripts/bronze_to_gcs_and_bq.sh
+./scripts/dbt_build.sh
+docker compose --profile grafana up -d grafana
+```
+
+Or run the full wrapper script:
+
+```bash
+./scripts/run_end_to_end.sh
+```
+
+Useful flags:
+- `--no-build` (skip `docker compose up --build -d`)
+- `--no-bronze-submit` (if bronze job is already running)
+- `--skip-gcs-test` (skip connectivity check)
+- `--force-rsync` (runs bronze sync with `SKIP_GCS_UPLOAD_IF_NO_PARQUET=0`)
+- `--no-grafana` (skip Grafana startup)
+- `--dry-run` (print commands only; do not execute)
+
 ### End-to-end checklist (Phases 1–5)
 
 1. `docker compose up -d` (producers, Flink, MinIO; submit bronze with `--profile bronze` when ready).
@@ -326,4 +420,41 @@ DAG **`tickvault_minio_gcs_bq_dbt`** runs **sync MinIO→GCS**, **`apply_bronze_
 - [Kraken API Center](https://docs.kraken.com/websockets/)
 - [CryptoCompare API](https://min-api.cryptocompare.com/)
 
-CoinGecko and CryptoCompare are wired into `raw.coingecko.v1` / `raw.cryptocompare.v1` and the Flink bronze union (`stream_kind` = `coingecko` / `cryptocompare`). dbt silver/gold models still filter trades and depth only; extend dbt if you want REST quotes in marts.
+CoinGecko and CryptoCompare are wired into `raw.coingecko.v1` / `raw.cryptocompare.v1` and the Flink bronze union (`stream_kind` = `coingecko` / `cryptocompare`). dbt silver/gold now includes those REST quotes in `fct_market_metrics` via `stg_rest_quotes` and `int_rest_quotes_1m`.
+
+## Quick SQL verification (one-glance runbook)
+
+Run these checks in BigQuery against your gold mart after `./scripts/dbt_build.sh`.
+
+1) **Gold has data and is fresh enough for dashboards**
+
+```sql
+SELECT COUNT(*) AS total_rows
+FROM `tick-vault.tickvault_gold.fct_market_metrics`;
+
+SELECT MAX(metric_ts) AS max_metric_ts
+FROM `tick-vault.tickvault_gold.fct_market_metrics`;
+```
+
+2) **All exchanges/symbols are present in the active window**
+
+```sql
+SELECT exchange, symbol, COUNT(*) rows
+FROM `tick-vault.tickvault_gold.fct_market_metrics`
+WHERE metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY)
+GROUP BY 1,2
+ORDER BY 1,2;
+```
+
+3) **If the active window is empty, locate the gap quickly**
+
+```sql
+SELECT COUNT(*) AS bronze_rows
+FROM `tick-vault.tickvault_bronze.tickvault_bronze`;
+
+SELECT COUNT(*) AS stg_trades_rows
+FROM `tick-vault.tickvault_silver.stg_trades`;
+
+SELECT COUNT(*) AS stg_depth_rows
+FROM `tick-vault.tickvault_silver.stg_depth`;
+```

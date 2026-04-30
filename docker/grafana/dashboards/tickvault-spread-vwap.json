@@ -40,7 +40,7 @@
           },
           "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT DATETIME(metric_ts) AS time, CONCAT(exchange, ':', symbol) AS metric, CAST(spread_bps AS FLOAT64) AS spread_bps FROM `${gold_dataset}.fct_market_metrics` WHERE spread_bps IS NOT NULL AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) ORDER BY 1",
+          "rawSql": "SELECT TIMESTAMP(metric_ts) AS time, CONCAT(exchange, ':', symbol) AS metric, CAST(spread_bps AS FLOAT64) AS value FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) AND ('${symbol:csv}' = '$__all' OR symbol IN UNNEST(SPLIT('${symbol:csv}', ','))) AND spread_bps IS NOT NULL AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) ORDER BY 1",
           "refId": "A"
         }
       ],
@@ -82,11 +82,53 @@
           },
           "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT DATETIME(metric_ts) AS time, 'vwap' AS metric, CAST(vwap AS FLOAT64) AS value FROM `${gold_dataset}.fct_market_metrics` WHERE exchange = '${exchange}' AND symbol = '${symbol}' AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) UNION ALL SELECT DATETIME(metric_ts) AS time, 'mid_price' AS metric, CAST(avg_mid_price AS FLOAT64) AS value FROM `${gold_dataset}.fct_market_metrics` WHERE exchange = '${exchange}' AND symbol = '${symbol}' AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) ORDER BY 1",
+          "rawSql": "SELECT TIMESTAMP(metric_ts) AS time, CONCAT(exchange, ':', symbol, ':vwap') AS metric, CAST(vwap AS FLOAT64) AS value FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) AND ('${symbol:csv}' = '$__all' OR symbol IN UNNEST(SPLIT('${symbol:csv}', ','))) AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) UNION ALL SELECT TIMESTAMP(metric_ts) AS time, CONCAT(exchange, ':', symbol, ':mid_price') AS metric, CAST(avg_mid_price AS FLOAT64) AS value FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) AND ('${symbol:csv}' = '$__all' OR symbol IN UNNEST(SPLIT('${symbol:csv}', ','))) AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) ORDER BY 1",
           "refId": "A"
         }
       ],
       "title": "VWAP vs mid-price",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-bigquery-datasource",
+        "uid": "bq_tickvault"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisLabel": "Deviation (bps)"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "bq_tickvault"
+          },
+          "editorMode": "code",
+          "format": 1,
+          "rawSql": "WITH base AS ( SELECT metric_ts, exchange, symbol, CAST(close AS FLOAT64) AS close_px, AVG(CAST(close AS FLOAT64)) OVER (PARTITION BY metric_ts, symbol) AS avg_close_px FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) AND ('${symbol:csv}' = '$__all' OR symbol IN UNNEST(SPLIT('${symbol:csv}', ','))) AND close IS NOT NULL AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) ) SELECT TIMESTAMP(metric_ts) AS time, CONCAT(exchange, ':', symbol) AS metric, SAFE_DIVIDE(close_px - avg_close_px, avg_close_px) * 10000 AS value FROM base ORDER BY 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Cross-exchange close deviation vs symbol average (bps)",
       "type": "timeseries"
     }
   ],
@@ -124,17 +166,22 @@
           "text": "binance",
           "value": "binance"
         },
+        "includeAll": true,
         "label": "Exchange",
+        "multi": false,
         "name": "exchange",
-        "options": [
-          {
-            "selected": true,
-            "text": "binance",
-            "value": "binance"
-          }
-        ],
-        "query": "binance",
-        "type": "textbox"
+        "query": {
+          "rawSql": "SELECT DISTINCT exchange FROM `${gold_dataset}.fct_market_metrics` ORDER BY 1",
+          "format": 1
+        },
+        "type": "query",
+        "datasource": {
+          "type": "grafana-bigquery-datasource",
+          "uid": "bq_tickvault"
+        },
+        "definition": "SELECT DISTINCT exchange FROM `${gold_dataset}.fct_market_metrics` ORDER BY 1",
+        "refresh": 2,
+        "allValue": "$__all"
       },
       {
         "current": {
@@ -142,17 +189,22 @@
           "text": "BTCUSDT",
           "value": "BTCUSDT"
         },
+        "includeAll": true,
         "label": "Symbol",
+        "multi": false,
         "name": "symbol",
-        "options": [
-          {
-            "selected": true,
-            "text": "BTCUSDT",
-            "value": "BTCUSDT"
-          }
-        ],
-        "query": "BTCUSDT",
-        "type": "textbox"
+        "query": {
+          "rawSql": "SELECT DISTINCT symbol FROM `${gold_dataset}.fct_market_metrics` WHERE exchange IN UNNEST(SPLIT('${exchange:csv}', ',')) ORDER BY 1",
+          "format": 1
+        },
+        "type": "query",
+        "datasource": {
+          "type": "grafana-bigquery-datasource",
+          "uid": "bq_tickvault"
+        },
+        "definition": "SELECT DISTINCT symbol FROM `${gold_dataset}.fct_market_metrics` WHERE exchange IN UNNEST(SPLIT('${exchange:csv}', ',')) ORDER BY 1",
+        "refresh": 2,
+        "allValue": "$__all"
       }
     ]
   },
@@ -160,7 +212,7 @@
     "from": "now-2d",
     "to": "now"
   },
-  "title": "Tick Vault — Spread & VWAP",
+  "title": "Tick Vault \u2014 Spread & VWAP",
   "uid": "tickvault-spread-vwap",
-  "version": 1
+  "version": 7
 }

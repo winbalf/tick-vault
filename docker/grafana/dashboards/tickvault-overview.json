@@ -60,7 +60,7 @@
           },
           "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT DATETIME(metric_ts) AS time, CAST(open AS FLOAT64) AS open, CAST(high AS FLOAT64) AS high, CAST(low AS FLOAT64) AS low, CAST(close AS FLOAT64) AS close FROM `${gold_dataset}.fct_market_metrics` WHERE exchange = '${exchange}' AND symbol = '${symbol}' AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) ORDER BY 1",
+          "rawSql": "SELECT TIMESTAMP(metric_ts) AS time, CAST(open AS FLOAT64) AS open, CAST(high AS FLOAT64) AS high, CAST(low AS FLOAT64) AS low, CAST(close AS FLOAT64) AS close FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ',')))) AND ('${symbol:csv}' = '$__all' OR ('${symbol:csv}' = '$__all' OR symbol IN UNNEST(SPLIT('${symbol:csv}', ',')))) AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) ORDER BY 1",
           "refId": "A"
         }
       ],
@@ -109,11 +109,53 @@
           },
           "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT DATETIME(metric_ts) AS time, CONCAT(exchange, ':', symbol) AS metric, CAST(volume AS FLOAT64) AS volume FROM `${gold_dataset}.fct_market_metrics` WHERE metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) ORDER BY 1",
+          "rawSql": "SELECT TIMESTAMP(metric_ts) AS time, CONCAT(exchange, ':', symbol) AS metric, CAST(volume AS FLOAT64) AS value FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange_multi:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange_multi:csv}', ','))) AND ('${symbol_multi:csv}' = '$__all' OR symbol IN UNNEST(SPLIT('${symbol_multi:csv}', ','))) AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) ORDER BY 1",
           "refId": "A"
         }
       ],
       "title": "Live traded volume by symbol",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-bigquery-datasource",
+        "uid": "bq_tickvault"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisLabel": "Close"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "bq_tickvault"
+          },
+          "editorMode": "code",
+          "format": 1,
+          "rawSql": "SELECT TIMESTAMP(metric_ts) AS time, CONCAT(exchange, ':', symbol) AS metric, CAST(close AS FLOAT64) AS value FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange_multi:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange_multi:csv}', ','))) AND ('${symbol:csv}' = '$__all' OR symbol IN UNNEST(SPLIT('${symbol:csv}', ','))) AND close IS NOT NULL AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) ORDER BY 1",
+          "refId": "A"
+        }
+      ],
+      "title": "Cross-exchange close price (same symbol)",
       "type": "timeseries"
     }
   ],
@@ -151,17 +193,22 @@
           "text": "binance",
           "value": "binance"
         },
+        "includeAll": true,
         "label": "Exchange",
         "name": "exchange",
-        "options": [
-          {
-            "selected": true,
-            "text": "binance",
-            "value": "binance"
-          }
-        ],
-        "query": "binance",
-        "type": "textbox"
+        "query": {
+          "rawSql": "SELECT DISTINCT exchange FROM `${gold_dataset}.fct_market_metrics` ORDER BY 1",
+          "format": 1
+        },
+        "type": "query",
+        "multi": false,
+        "datasource": {
+          "type": "grafana-bigquery-datasource",
+          "uid": "bq_tickvault"
+        },
+        "definition": "SELECT DISTINCT exchange FROM `${gold_dataset}.fct_market_metrics` ORDER BY 1",
+        "refresh": 2,
+        "allValue": "$__all"
       },
       {
         "current": {
@@ -169,17 +216,68 @@
           "text": "BTCUSDT",
           "value": "BTCUSDT"
         },
+        "includeAll": true,
         "label": "Symbol",
         "name": "symbol",
-        "options": [
-          {
-            "selected": true,
-            "text": "BTCUSDT",
-            "value": "BTCUSDT"
-          }
-        ],
-        "query": "BTCUSDT",
-        "type": "textbox"
+        "query": {
+          "rawSql": "SELECT DISTINCT symbol FROM `${gold_dataset}.fct_market_metrics` WHERE exchange IN UNNEST(SPLIT('${exchange:csv}', ',')) ORDER BY 1",
+          "format": 1
+        },
+        "type": "query",
+        "multi": false,
+        "datasource": {
+          "type": "grafana-bigquery-datasource",
+          "uid": "bq_tickvault"
+        },
+        "definition": "SELECT DISTINCT symbol FROM `${gold_dataset}.fct_market_metrics` WHERE exchange IN UNNEST(SPLIT('${exchange:csv}', ',')) ORDER BY 1",
+        "refresh": 2,
+        "allValue": "$__all"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "binance",
+          "value": "binance"
+        },
+        "includeAll": true,
+        "label": "Exchange (compare)",
+        "multi": true,
+        "name": "exchange_multi",
+        "query": {
+          "rawSql": "SELECT DISTINCT exchange FROM `${gold_dataset}.fct_market_metrics` ORDER BY 1",
+          "format": 1
+        },
+        "type": "query",
+        "datasource": {
+          "type": "grafana-bigquery-datasource",
+          "uid": "bq_tickvault"
+        },
+        "definition": "SELECT DISTINCT exchange FROM `${gold_dataset}.fct_market_metrics` ORDER BY 1",
+        "refresh": 2,
+        "allValue": "$__all"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "BTCUSDT",
+          "value": "BTCUSDT"
+        },
+        "includeAll": true,
+        "label": "Symbol (compare)",
+        "multi": true,
+        "name": "symbol_multi",
+        "query": {
+          "rawSql": "SELECT DISTINCT symbol FROM `${gold_dataset}.fct_market_metrics` WHERE exchange IN UNNEST(SPLIT('${exchange_multi:csv}', ',')) ORDER BY 1",
+          "format": 1
+        },
+        "type": "query",
+        "datasource": {
+          "type": "grafana-bigquery-datasource",
+          "uid": "bq_tickvault"
+        },
+        "definition": "SELECT DISTINCT symbol FROM `${gold_dataset}.fct_market_metrics` WHERE exchange IN UNNEST(SPLIT('${exchange_multi:csv}', ',')) ORDER BY 1",
+        "refresh": 2,
+        "allValue": "$__all"
       }
     ]
   },
@@ -188,7 +286,7 @@
     "to": "now"
   },
   "timezone": "browser",
-  "title": "Tick Vault — Live Price & Volume",
+  "title": "Tick Vault \u2014 Live Price & Volume",
   "uid": "tickvault-live-price-volume",
-  "version": 1
+  "version": 7
 }

@@ -151,7 +151,7 @@
           },
           "editorMode": "code",
           "format": 0,
-          "rawSql": "SELECT CURRENT_TIMESTAMP() AS time, CAST(COUNT(*) AS FLOAT64) AS rows_2d FROM `${gold_dataset}.fct_market_metrics` WHERE metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY)",
+          "rawSql": "SELECT CURRENT_TIMESTAMP() AS time, CAST(COUNT(*) AS FLOAT64) AS rows_2d FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) AND ('${symbol:csv}' = '$__all' OR symbol IN UNNEST(SPLIT('${symbol:csv}', ','))) AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY)",
           "refId": "A"
         }
       ],
@@ -196,7 +196,7 @@
           },
           "editorMode": "code",
           "format": 0,
-          "rawSql": "SELECT CURRENT_TIMESTAMP() AS time, CAST(TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), MAX(metric_ts), SECOND) AS FLOAT64) AS freshness_lag_seconds FROM `${gold_dataset}.fct_market_metrics`",
+          "rawSql": "SELECT CURRENT_TIMESTAMP() AS time, CAST(TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), MAX(metric_ts), SECOND) AS FLOAT64) AS freshness_lag_seconds FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) AND ('${symbol:csv}' = '$__all' OR symbol IN UNNEST(SPLIT('${symbol:csv}', ',')))",
           "refId": "A"
         }
       ],
@@ -241,7 +241,7 @@
           },
           "editorMode": "code",
           "format": 0,
-          "rawSql": "SELECT CURRENT_TIMESTAMP() AS time, CAST(UNIX_SECONDS(MAX(metric_ts)) AS FLOAT64) AS latest_metric_ts_epoch FROM `${gold_dataset}.fct_market_metrics`",
+          "rawSql": "SELECT CURRENT_TIMESTAMP() AS time, CAST(UNIX_SECONDS(MAX(metric_ts)) AS FLOAT64) AS latest_metric_ts_epoch FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) AND ('${symbol:csv}' = '$__all' OR symbol IN UNNEST(SPLIT('${symbol:csv}', ',')))",
           "refId": "A"
         }
       ],
@@ -286,7 +286,7 @@
           },
           "editorMode": "code",
           "format": 0,
-          "rawSql": "SELECT CURRENT_TIMESTAMP() AS time, CAST(COUNT(*) AS FLOAT64) AS total_rows FROM `${gold_dataset}.fct_market_metrics`",
+          "rawSql": "SELECT CURRENT_TIMESTAMP() AS time, CAST(COUNT(*) AS FLOAT64) AS total_rows FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) AND ('${symbol:csv}' = '$__all' OR symbol IN UNNEST(SPLIT('${symbol:csv}', ',')))",
           "refId": "A"
         }
       ],
@@ -320,7 +320,7 @@
           },
           "editorMode": "code",
           "format": 0,
-          "rawSql": "SELECT exchange, symbol, COUNT(*) AS rows_2d, MAX(metric_ts) AS latest_ts FROM `${gold_dataset}.fct_market_metrics` WHERE metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) GROUP BY 1, 2 ORDER BY rows_2d DESC",
+          "rawSql": "SELECT exchange, symbol, COUNT(*) AS rows_2d, MAX(metric_ts) AS latest_ts FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) AND ('${symbol:csv}' = '$__all' OR symbol IN UNNEST(SPLIT('${symbol:csv}', ','))) AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) GROUP BY 1, 2 ORDER BY rows_2d DESC",
           "refId": "A"
         }
       ],
@@ -354,7 +354,7 @@
           },
           "editorMode": "code",
           "format": 0,
-          "rawSql": "SELECT metric_ts, exchange, symbol, close, volume, spread_bps, volatility, dead_letter_count FROM `${gold_dataset}.fct_market_metrics` ORDER BY metric_ts DESC LIMIT 100",
+          "rawSql": "SELECT metric_ts, exchange, symbol, close, volume, spread_bps, volatility, dead_letter_count FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) AND ('${symbol:csv}' = '$__all' OR symbol IN UNNEST(SPLIT('${symbol:csv}', ','))) ORDER BY metric_ts DESC LIMIT 100",
           "refId": "A"
         }
       ],
@@ -388,6 +388,52 @@
         ],
         "query": "tickvault_gold",
         "type": "textbox"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "binance",
+          "value": "binance"
+        },
+        "includeAll": true,
+        "label": "Exchange",
+        "multi": false,
+        "name": "exchange",
+        "query": {
+          "rawSql": "SELECT DISTINCT exchange FROM `${gold_dataset}.fct_market_metrics` ORDER BY 1",
+          "format": 1
+        },
+        "type": "query",
+        "datasource": {
+          "type": "grafana-bigquery-datasource",
+          "uid": "bq_tickvault"
+        },
+        "definition": "SELECT DISTINCT exchange FROM `${gold_dataset}.fct_market_metrics` ORDER BY 1",
+        "refresh": 2,
+        "allValue": "$__all"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "BTCUSDT",
+          "value": "BTCUSDT"
+        },
+        "includeAll": true,
+        "label": "Symbol",
+        "multi": false,
+        "name": "symbol",
+        "query": {
+          "rawSql": "SELECT DISTINCT symbol FROM `${gold_dataset}.fct_market_metrics` WHERE exchange IN UNNEST(SPLIT('${exchange:csv}', ',')) ORDER BY 1",
+          "format": 1
+        },
+        "type": "query",
+        "datasource": {
+          "type": "grafana-bigquery-datasource",
+          "uid": "bq_tickvault"
+        },
+        "definition": "SELECT DISTINCT symbol FROM `${gold_dataset}.fct_market_metrics` WHERE exchange IN UNNEST(SPLIT('${exchange:csv}', ',')) ORDER BY 1",
+        "refresh": 2,
+        "allValue": "$__all"
       }
     ]
   },
@@ -396,7 +442,7 @@
     "to": "now"
   },
   "timezone": "browser",
-  "title": "Tick Vault — Debug BigQuery",
+  "title": "Tick Vault \u2014 Debug BigQuery",
   "uid": "tickvault-debug-bq",
-  "version": 1
+  "version": 6
 }

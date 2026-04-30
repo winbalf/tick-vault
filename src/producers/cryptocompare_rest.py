@@ -17,39 +17,80 @@ def _now() -> datetime:
 
 
 async def run_cryptocompare_quotes(settings: Settings, sink: RedpandaSink) -> None:
-    url = "https://min-api.cryptocompare.com/data/price"
     while True:
         try:
+            fsyms = settings.cryptocompare_fsyms
+            multi = len(fsyms) > 1
+            url = (
+                "https://min-api.cryptocompare.com/data/pricemulti"
+                if multi
+                else "https://min-api.cryptocompare.com/data/price"
+            )
             async with httpx.AsyncClient(timeout=30.0) as client:
-                r = await client.get(
-                    url,
-                    params={
-                        "fsym": settings.cryptocompare_fsym,
-                        "tsyms": "USD",
-                    },
-                )
+                if multi:
+                    r = await client.get(
+                        url,
+                        params={
+                            "fsyms": ",".join(fsyms),
+                            "tsyms": "USD",
+                        },
+                    )
+                else:
+                    r = await client.get(
+                        url,
+                        params={
+                            "fsym": fsyms[0],
+                            "tsyms": "USD",
+                        },
+                    )
                 r.raise_for_status()
                 raw = r.json()
 
-            usd = raw.get("USD")
-            if usd is None:
-                raise ValueError(f"unexpected cryptocompare payload: {raw}")
-
             event_ts_ms = int(time.time() * 1000)
-            quote = RestQuoteEvent(
-                venue="cryptocompare",
-                symbol=settings.cryptocompare_fsym.upper(),
-                quote_id=f"cc-{event_ts_ms}-{token_hex(4)}",
-                event_ts_ms=event_ts_ms,
-                price_usd=Decimal(str(usd)),
-                ingest_ts=_now(),
-                raw_event=raw,
-            )
-            sink.send(
-                topic=settings.cryptocompare_topic,
-                key=f"cryptocompare:{quote.symbol}",
-                value=quote.model_dump(mode="json"),
-            )
+            if multi:
+                if not isinstance(raw, dict):
+                    raise ValueError(f"unexpected cryptocompare payload: {raw}")
+                for fsym in fsyms:
+                    inner = raw.get(fsym) or raw.get(fsym.upper())
+                    if not isinstance(inner, dict):
+                        raise ValueError(f"missing quote for {fsym!r} in {raw}")
+                    usd = inner.get("USD")
+                    if usd is None:
+                        raise ValueError(f"missing USD for {fsym!r} in {raw}")
+                    sym = fsym.upper()
+                    quote = RestQuoteEvent(
+                        venue="cryptocompare",
+                        symbol=sym,
+                        quote_id=f"cc-{event_ts_ms}-{token_hex(4)}",
+                        event_ts_ms=event_ts_ms,
+                        price_usd=Decimal(str(usd)),
+                        ingest_ts=_now(),
+                        raw_event=raw,
+                    )
+                    sink.send(
+                        topic=settings.cryptocompare_topic,
+                        key=f"cryptocompare:{quote.symbol}",
+                        value=quote.model_dump(mode="json"),
+                    )
+            else:
+                usd = raw.get("USD")
+                if usd is None:
+                    raise ValueError(f"unexpected cryptocompare payload: {raw}")
+                sym = fsyms[0].upper()
+                quote = RestQuoteEvent(
+                    venue="cryptocompare",
+                    symbol=sym,
+                    quote_id=f"cc-{event_ts_ms}-{token_hex(4)}",
+                    event_ts_ms=event_ts_ms,
+                    price_usd=Decimal(str(usd)),
+                    ingest_ts=_now(),
+                    raw_event=raw,
+                )
+                sink.send(
+                    topic=settings.cryptocompare_topic,
+                    key=f"cryptocompare:{quote.symbol}",
+                    value=quote.model_dump(mode="json"),
+                )
         except (httpx.HTTPError, ValueError, TypeError, ValidationError) as exc:
             dlq = DlqEvent(
                 source="cryptocompare.rest",

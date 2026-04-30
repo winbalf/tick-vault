@@ -168,15 +168,19 @@ docker compose up -d --build producers
 
 ### Reference pairs (Binance, Kraken, REST)
 
-Use **one row at a time** in `.env`: the producers support a **single** Binance stream, one Kraken book, and one REST asset each. Pick a row, set all columns for that row, then recreate the `producers` container (commands above).
+You can set **comma-separated** values (no spaces) on `BINANCE_SYMBOL`, `KRAKEN_PAIR`, `COINGECKO_ID`, and `CRYPTOCOMPARE_FSYM` to ingest **multiple** markets in one `producers` process. Align lists by concept (same row across columns) when you want comparable series in Grafana.
+
+With **several Binance symbols**, `BINANCE_WS_URL` is **replaced** by an auto-built combined stream URL unless your URL already contains `/stream?` and `streams=` (so you can override). With **one** symbol, `BINANCE_WS_URL` behaves as before.
+
+Alternatively, use **one row at a time**: a single symbol per variable matches the table below.
 
 | Column | Maps to `.env` |
 |--------|----------------|
-| Binance symbol | `BINANCE_SYMBOL` |
+| Binance symbol(s) | `BINANCE_SYMBOL` (comma-separated) |
 | Binance trade WebSocket URL | `BINANCE_WS_URL` |
-| Kraken pair | `KRAKEN_PAIR` |
-| CoinGecko coin id | `COINGECKO_ID` |
-| CryptoCompare from-symbol | `CRYPTOCOMPARE_FSYM` |
+| Kraken pair(s) | `KRAKEN_PAIR` (comma-separated) |
+| CoinGecko coin id(s) | `COINGECKO_ID` (comma-separated slugs) |
+| CryptoCompare from-symbol(s) | `CRYPTOCOMPARE_FSYM` (comma-separated tickers) |
 
 CoinGecko ids follow [their coin list](https://api.coingecko.com/api/v3/coins/list) (ids are lowercase slugs). CryptoCompare `fsym` is the usual ticker for the **base** asset in a `BASE/USD` quote.
 

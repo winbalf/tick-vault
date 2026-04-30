@@ -29,6 +29,13 @@ def _extract_book_payload(message: list[Any]) -> dict[str, Any]:
     return payload
 
 
+def _pair_from_kraken_message(message: list[Any]) -> str | None:
+    for el in reversed(message):
+        if isinstance(el, str) and "/" in el:
+            return el
+    return None
+
+
 def _build_book_event(message: list[Any], pair: str) -> OrderBookEvent:
     payload = _extract_book_payload(message)
     bids = payload.get("b", []) or payload.get("bs", [])
@@ -50,7 +57,7 @@ def _build_book_event(message: list[Any], pair: str) -> OrderBookEvent:
 async def run_kraken_depth(settings: Settings, sink: RedpandaSink) -> None:
     subscribe = {
         "event": "subscribe",
-        "pair": [settings.kraken_pair],
+        "pair": list(settings.kraken_pairs),
         "subscription": {"name": "book", "depth": settings.kraken_book_depth},
     }
     backoff = settings.reconnect_base_seconds
@@ -58,7 +65,7 @@ async def run_kraken_depth(settings: Settings, sink: RedpandaSink) -> None:
     while True:
         try:
             async with websockets.connect(settings.kraken_ws_url, ping_interval=20, ping_timeout=20) as ws:
-                print(f"[kraken] connected to {settings.kraken_ws_url}")
+                print(f"[kraken] connected to {settings.kraken_ws_url} pairs={settings.kraken_pairs}")
                 backoff = settings.reconnect_base_seconds
                 await ws.send(json.dumps(subscribe))
 
@@ -70,7 +77,8 @@ async def run_kraken_depth(settings: Settings, sink: RedpandaSink) -> None:
                         if not isinstance(raw, list) or len(raw) < 2:
                             continue
 
-                        book = _build_book_event(raw, settings.kraken_pair)
+                        pair = _pair_from_kraken_message(raw) or settings.kraken_pairs[0]
+                        book = _build_book_event(raw, pair)
                         sink.send(
                             topic=settings.depth_topic,
                             key=f"kraken:{book.symbol}",

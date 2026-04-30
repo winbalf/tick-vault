@@ -5,8 +5,48 @@
   )
 }}
 
-with ohlcv as (
-  select * from {{ ref("int_ohlcv_1m") }}
+with ohlcv_trades as (
+  select
+    exchange,
+    symbol,
+    metric_ts,
+    metric_date,
+    open_price,
+    high_price,
+    low_price,
+    close_price,
+    base_volume,
+    trade_count,
+    vwap,
+    zero_volume_flag,
+    price_spike_flag,
+    anomaly_flag
+  from {{ ref("int_ohlcv_1m") }}
+),
+
+ohlcv_rest as (
+  select
+    exchange,
+    symbol,
+    metric_ts,
+    metric_date,
+    open_price,
+    high_price,
+    low_price,
+    close_price,
+    base_volume,
+    quote_count as trade_count,
+    vwap,
+    false as zero_volume_flag,
+    false as price_spike_flag,
+    false as anomaly_flag
+  from {{ ref("int_rest_quotes_1m") }}
+),
+
+ohlcv as (
+  select * from ohlcv_trades
+  union all
+  select * from ohlcv_rest
 ),
 
 dlq as (

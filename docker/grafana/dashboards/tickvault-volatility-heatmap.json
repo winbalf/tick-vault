@@ -50,7 +50,7 @@
           },
           "editorMode": "code",
           "format": 0,
-          "rawSql": "SELECT CONCAT(exchange, ':', symbol) AS symbol, EXTRACT(HOUR FROM metric_ts) AS hour_of_day, CAST(AVG(volatility) AS FLOAT64) AS volatility FROM `${gold_dataset}.fct_market_metrics` WHERE volatility IS NOT NULL AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 3 DAY) GROUP BY 1, 2 ORDER BY 1, 2",
+          "rawSql": "SELECT CONCAT(exchange, ':', symbol) AS symbol, EXTRACT(HOUR FROM metric_ts) AS hour_of_day, CAST(AVG(volatility) AS FLOAT64) AS volatility FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) AND ('${symbol:csv}' = '$__all' OR symbol IN UNNEST(SPLIT('${symbol:csv}', ','))) AND volatility IS NOT NULL AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 3 DAY) GROUP BY 1, 2 ORDER BY 1, 2",
           "refId": "A"
         }
       ],
@@ -85,6 +85,52 @@
         ],
         "query": "tickvault_gold",
         "type": "textbox"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "binance",
+          "value": "binance"
+        },
+        "includeAll": true,
+        "label": "Exchange",
+        "multi": false,
+        "name": "exchange",
+        "query": {
+          "rawSql": "SELECT DISTINCT exchange FROM `${gold_dataset}.fct_market_metrics` ORDER BY 1",
+          "format": 1
+        },
+        "type": "query",
+        "datasource": {
+          "type": "grafana-bigquery-datasource",
+          "uid": "bq_tickvault"
+        },
+        "definition": "SELECT DISTINCT exchange FROM `${gold_dataset}.fct_market_metrics` ORDER BY 1",
+        "refresh": 2,
+        "allValue": "$__all"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "BTCUSDT",
+          "value": "BTCUSDT"
+        },
+        "includeAll": true,
+        "label": "Symbol",
+        "multi": false,
+        "name": "symbol",
+        "query": {
+          "rawSql": "SELECT DISTINCT symbol FROM `${gold_dataset}.fct_market_metrics` WHERE exchange IN UNNEST(SPLIT('${exchange:csv}', ',')) ORDER BY 1",
+          "format": 1
+        },
+        "type": "query",
+        "datasource": {
+          "type": "grafana-bigquery-datasource",
+          "uid": "bq_tickvault"
+        },
+        "definition": "SELECT DISTINCT symbol FROM `${gold_dataset}.fct_market_metrics` WHERE exchange IN UNNEST(SPLIT('${exchange:csv}', ',')) ORDER BY 1",
+        "refresh": 2,
+        "allValue": "$__all"
       }
     ]
   },
@@ -92,7 +138,7 @@
     "from": "now-2d",
     "to": "now"
   },
-  "title": "Tick Vault — Volatility Heatmap",
+  "title": "Tick Vault \u2014 Volatility Heatmap",
   "uid": "tickvault-volatility-heatmap",
-  "version": 1
+  "version": 6
 }
