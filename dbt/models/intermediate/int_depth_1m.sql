@@ -8,6 +8,9 @@
 select
   exchange,
   symbol,
+  any_value(base_asset) as base_asset,
+  any_value(quote_asset) as quote_asset,
+  any_value(instrument_id) as instrument_id,
   timestamp_trunc(event_ts, minute) as metric_ts,
   date(timestamp_trunc(event_ts, minute)) as metric_date,
   avg(spread_bps) as avg_spread_bps,

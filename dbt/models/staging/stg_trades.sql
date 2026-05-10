@@ -1,3 +1,8 @@
+-- to run:
+-- dbt run -m staging.stg_trades --full-refresh
+-- dbt test --select staging.stg_trades
+-- dbt docs generate 
+-- dbt docs serve 
 {{
   config(
     materialized="view",
@@ -5,6 +10,7 @@
   )
 }}
 
+-- this is the bronze layer, the raw data from the source
 with bronze as (
   select
     stream_kind,
@@ -22,6 +28,7 @@ with bronze as (
   where stream_kind = "trades"
 ),
 
+-- this is the silver layer, the parsed data
 parsed as (
   select
     *,
@@ -42,11 +49,12 @@ parsed as (
     case
       when lower(json_value(payload, "$.is_buyer_maker")) in ("true", "1", "t") then true
       when lower(json_value(payload, "$.is_buyer_maker")) in ("false", "0", "f") then false
-      else cast(null as bool)
+      else cast(null as bool) 
     end as is_buyer_maker
   from bronze
 ),
 
+-- this is the gold layer, the filtered data
 filtered as (
   select
     *
@@ -82,6 +90,24 @@ deduped as (
     partition by exchange, symbol, trade_id
     order by kafka_offset desc, kafka_partition desc, kafka_topic desc
   ) = 1
+),
+
+mapped as (
+  select
+    d.*,
+    m.base_asset,
+    m.quote_asset,
+    coalesce(
+      case
+        when m.base_asset is not null and m.quote_asset is not null
+          then concat(m.base_asset, '-', m.quote_asset)
+      end,
+      d.symbol
+    ) as instrument_id
+  from deduped d
+  left join {{ ref("instrument_map") }} m
+    on lower(d.exchange) = lower(m.exchange)
+    and d.symbol = m.symbol
 )
 
 select
@@ -94,10 +120,13 @@ select
   dt,
   exchange,
   symbol,
+  base_asset,
+  quote_asset,
+  instrument_id,
   trade_id,
   event_ts,
   price,
   quantity,
   is_buyer_maker,
   ingest_ts
-from deduped
+from mapped

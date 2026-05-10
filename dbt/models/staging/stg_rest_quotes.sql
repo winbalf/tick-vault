@@ -1,3 +1,8 @@
+-- to run:
+-- dbt run -m staging.stg_rest_quotes --full-refresh
+-- dbt test --select staging.stg_rest_quotes
+-- dbt docs generate 
+-- dbt docs serve 
 {{
   config(
     materialized="view",
@@ -5,6 +10,7 @@
   )
 }}
 
+-- this is the bronze layer, the raw data from the source
 with bronze as (
   select
     stream_kind,
@@ -21,6 +27,7 @@ with bronze as (
   where stream_kind in ("coingecko", "cryptocompare")
 ),
 
+-- this is the silver layer, the parsed data
 parsed as (
   select
     *,
@@ -40,6 +47,7 @@ parsed as (
   from bronze
 ),
 
+-- this is the gold layer, the filtered data
 filtered as (
   select
     *
@@ -52,6 +60,7 @@ filtered as (
     and price_usd > 0
 ),
 
+-- this is the gold layer, the deduped data
 deduped as (
   select
     *
@@ -60,8 +69,27 @@ deduped as (
     partition by quote_key
     order by ingest_ts desc, event_ts desc
   ) = 1
+),
+
+mapped as (
+  select
+    d.*,
+    m.base_asset,
+    m.quote_asset,
+    coalesce(
+      case
+        when m.base_asset is not null and m.quote_asset is not null
+          then concat(m.base_asset, '-', m.quote_asset)
+      end,
+      d.symbol
+    ) as instrument_id
+  from deduped d
+  left join {{ ref("instrument_map") }} m
+    on lower(d.exchange) = lower(m.exchange)
+    and d.symbol = m.symbol
 )
 
+-- this is the gold layer, the final data
 select
   quote_key,
   stream_kind,
@@ -72,8 +100,11 @@ select
   dt,
   exchange,
   symbol,
+  base_asset,
+  quote_asset,
+  instrument_id,
   quote_id,
   event_ts,
   price_usd,
   ingest_ts
-from deduped
+from mapped

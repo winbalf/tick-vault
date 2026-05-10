@@ -118,11 +118,11 @@
           },
           "editorMode": "code",
           "format": 1,
-          "rawSql": "WITH px AS ( SELECT TIMESTAMP_TRUNC(metric_ts, MINUTE) AS minute_bucket, symbol, MIN(CAST(close AS FLOAT64)) AS min_px, MAX(CAST(close AS FLOAT64)) AS max_px FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) AND ('${symbol:csv}' = '$__all' OR symbol IN UNNEST(SPLIT('${symbol:csv}', ','))) AND close IS NOT NULL AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 DAY) GROUP BY 1, 2 ) SELECT minute_bucket AS time, CONCAT(symbol, ':max-min') AS metric, CAST(SAFE_DIVIDE(max_px - min_px, NULLIF((max_px + min_px) / 2, 0)) * 10000 AS FLOAT64) AS value FROM px ORDER BY 1",
+          "rawSql": "WITH px AS ( SELECT TIMESTAMP_TRUNC(metric_ts, MINUTE) AS minute_bucket, instrument_id, MIN(CAST(close AS FLOAT64)) AS min_px, MAX(CAST(close AS FLOAT64)) AS max_px FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) AND ('${instrument_id:csv}' = '$__all' OR instrument_id IN UNNEST(SPLIT('${instrument_id:csv}', ','))) AND close IS NOT NULL AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 DAY) GROUP BY 1, 2 ) SELECT minute_bucket AS time, CONCAT(instrument_id, ':max-min') AS metric, CAST(SAFE_DIVIDE(max_px - min_px, NULLIF((max_px + min_px) / 2, 0)) * 10000 AS FLOAT64) AS value FROM px ORDER BY 1",
           "refId": "A"
         }
       ],
-      "title": "Cross-exchange price divergence (max-min bps)",
+      "title": "Cross-exchange price divergence by instrument (max-min bps)",
       "type": "timeseries"
     },
     {
@@ -152,11 +152,11 @@
           },
           "editorMode": "code",
           "format": 0,
-          "rawSql": "WITH base AS ( SELECT metric_ts, exchange, symbol, CAST(close AS FLOAT64) AS close_px, LAG(CAST(close AS FLOAT64)) OVER (PARTITION BY exchange, symbol ORDER BY metric_ts) AS prev_close FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 DAY) ), rets AS ( SELECT exchange, symbol, SAFE_DIVIDE(close_px - prev_close, NULLIF(prev_close, 0)) AS ret FROM base WHERE prev_close IS NOT NULL ) SELECT a.symbol AS symbol_a, b.symbol AS symbol_b, CAST(CORR(a.ret, b.ret) AS FLOAT64) AS corr_1d FROM rets a JOIN rets b ON a.exchange = b.exchange AND a.symbol < b.symbol GROUP BY 1, 2 ORDER BY corr_1d DESC LIMIT 100",
+          "rawSql": "WITH base AS ( SELECT metric_ts, exchange, instrument_id, CAST(close AS FLOAT64) AS close_px, LAG(CAST(close AS FLOAT64)) OVER (PARTITION BY exchange, instrument_id ORDER BY metric_ts) AS prev_close FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 DAY) ), rets AS ( SELECT exchange, instrument_id, SAFE_DIVIDE(close_px - prev_close, NULLIF(prev_close, 0)) AS ret FROM base WHERE prev_close IS NOT NULL ) SELECT a.instrument_id AS instrument_a, b.instrument_id AS instrument_b, CAST(CORR(a.ret, b.ret) AS FLOAT64) AS corr_1d FROM rets a JOIN rets b ON a.exchange = b.exchange AND a.instrument_id < b.instrument_id GROUP BY 1, 2 ORDER BY corr_1d DESC LIMIT 100",
           "refId": "A"
         }
       ],
-      "title": "Top symbol return correlations (1d)",
+      "title": "Top instrument return correlations (1d)",
       "type": "table"
     },
     {
@@ -186,11 +186,11 @@
           },
           "editorMode": "code",
           "format": 0,
-          "rawSql": "WITH w AS ( SELECT exchange, symbol, metric_ts, CAST(close AS FLOAT64) AS close_px, CAST(volume AS FLOAT64) AS volume_px, CAST(spread_bps AS FLOAT64) AS spread_bps FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) AND ('${symbol:csv}' = '$__all' OR symbol IN UNNEST(SPLIT('${symbol:csv}', ','))) AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 DAY) ), r AS ( SELECT exchange, symbol, metric_ts, SAFE_DIVIDE(close_px - LAG(close_px) OVER (PARTITION BY exchange, symbol ORDER BY metric_ts), NULLIF(LAG(close_px) OVER (PARTITION BY exchange, symbol ORDER BY metric_ts), 0)) AS ret, volume_px, spread_bps FROM w ), s AS ( SELECT exchange, symbol, metric_ts, ret, volume_px, spread_bps, AVG(ret) OVER (PARTITION BY exchange, symbol) AS avg_ret, STDDEV_POP(ret) OVER (PARTITION BY exchange, symbol) AS sd_ret, AVG(volume_px) OVER (PARTITION BY exchange, symbol) AS avg_vol, STDDEV_POP(volume_px) OVER (PARTITION BY exchange, symbol) AS sd_vol, AVG(spread_bps) OVER (PARTITION BY exchange, symbol) AS avg_spread, STDDEV_POP(spread_bps) OVER (PARTITION BY exchange, symbol) AS sd_spread FROM r ) SELECT exchange, symbol, metric_ts, CAST((COALESCE(ABS(SAFE_DIVIDE(ret - avg_ret, NULLIF(sd_ret, 0))), 0) + COALESCE(ABS(SAFE_DIVIDE(volume_px - avg_vol, NULLIF(sd_vol, 0))), 0) + COALESCE(ABS(SAFE_DIVIDE(spread_bps - avg_spread, NULLIF(sd_spread, 0))), 0)) AS FLOAT64) AS anomaly_score, ret, volume_px AS volume, spread_bps FROM s WHERE metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 HOUR) ORDER BY anomaly_score DESC LIMIT 200",
+          "rawSql": "WITH w AS ( SELECT exchange, instrument_id, symbol, metric_ts, CAST(close AS FLOAT64) AS close_px, CAST(volume AS FLOAT64) AS volume_px, CAST(spread_bps AS FLOAT64) AS spread_bps FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) AND ('${instrument_id:csv}' = '$__all' OR instrument_id IN UNNEST(SPLIT('${instrument_id:csv}', ','))) AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 DAY) ), r AS ( SELECT exchange, instrument_id, symbol, metric_ts, SAFE_DIVIDE(close_px - LAG(close_px) OVER (PARTITION BY exchange, instrument_id ORDER BY metric_ts), NULLIF(LAG(close_px) OVER (PARTITION BY exchange, instrument_id ORDER BY metric_ts), 0)) AS ret, volume_px, spread_bps FROM w ), s AS ( SELECT exchange, instrument_id, symbol, metric_ts, ret, volume_px, spread_bps, AVG(ret) OVER (PARTITION BY exchange, instrument_id) AS avg_ret, STDDEV_POP(ret) OVER (PARTITION BY exchange, instrument_id) AS sd_ret, AVG(volume_px) OVER (PARTITION BY exchange, instrument_id) AS avg_vol, STDDEV_POP(volume_px) OVER (PARTITION BY exchange, instrument_id) AS sd_vol, AVG(spread_bps) OVER (PARTITION BY exchange, instrument_id) AS avg_spread, STDDEV_POP(spread_bps) OVER (PARTITION BY exchange, instrument_id) AS sd_spread FROM r ) SELECT exchange, instrument_id, symbol, metric_ts, CAST((COALESCE(ABS(SAFE_DIVIDE(ret - avg_ret, NULLIF(sd_ret, 0))), 0) + COALESCE(ABS(SAFE_DIVIDE(volume_px - avg_vol, NULLIF(sd_vol, 0))), 0) + COALESCE(ABS(SAFE_DIVIDE(spread_bps - avg_spread, NULLIF(sd_spread, 0))), 0)) AS FLOAT64) AS anomaly_score, ret, volume_px AS volume, spread_bps FROM s WHERE metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 HOUR) ORDER BY anomaly_score DESC LIMIT 200",
           "refId": "A"
         }
       ],
-      "title": "Symbol anomaly score (last 2h points)",
+      "title": "Instrument anomaly score (last 2h points)",
       "type": "table"
     }
   ],
@@ -200,7 +200,7 @@
     "tick-vault",
     "phase-5",
     "exchange",
-    "symbol",
+    "instrument",
     "intelligence"
   ],
   "templating": {
@@ -253,11 +253,11 @@
           "value": "$__all"
         },
         "includeAll": true,
-        "label": "Symbol",
+        "label": "Instrument",
         "multi": true,
-        "name": "symbol",
+        "name": "instrument_id",
         "query": {
-          "rawSql": "SELECT DISTINCT symbol FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) ORDER BY 1",
+          "rawSql": "SELECT DISTINCT instrument_id FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) ORDER BY 1",
           "format": 1
         },
         "type": "query",
@@ -265,7 +265,7 @@
           "type": "grafana-bigquery-datasource",
           "uid": "bq_tickvault"
         },
-        "definition": "SELECT DISTINCT symbol FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) ORDER BY 1",
+        "definition": "SELECT DISTINCT instrument_id FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) ORDER BY 1",
         "refresh": 2,
         "allValue": "$__all"
       }

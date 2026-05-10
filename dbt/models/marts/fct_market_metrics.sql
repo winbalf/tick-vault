@@ -9,6 +9,9 @@ with ohlcv_trades as (
   select
     exchange,
     symbol,
+    base_asset,
+    quote_asset,
+    instrument_id,
     metric_ts,
     metric_date,
     open_price,
@@ -28,6 +31,9 @@ ohlcv_rest as (
   select
     exchange,
     symbol,
+    base_asset,
+    quote_asset,
+    instrument_id,
     metric_ts,
     metric_date,
     open_price,
@@ -57,6 +63,9 @@ joined as (
   select
     o.exchange,
     o.symbol,
+    o.base_asset,
+    o.quote_asset,
+    o.instrument_id,
     o.metric_ts,
     o.metric_date,
     o.open_price,
@@ -111,6 +120,9 @@ vol as (
 select
   exchange,
   symbol,
+  base_asset,
+  quote_asset,
+  instrument_id,
   metric_ts,
   metric_date,
   open_price as open,

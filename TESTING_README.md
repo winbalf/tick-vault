@@ -205,7 +205,7 @@ CoinGecko ids follow [their coin list](https://api.coingecko.com/api/v3/coins/li
 
 `KRAKEN_WS_URL` stays `wss://ws.kraken.com` (default in `.env.example`).
 
-**Notes:** Kraken spot Bitcoin is usually **`XBT/USDT`**, not `BTC/USDT`. The Binance URL path segment before `@trade` must be the **lowercase** `symbol` (no slash). After switching pairs, Grafana variables must match the **`symbol`** and **`exchange`** values present in BigQuery.
+**Notes:** Kraken spot Bitcoin is usually **`XBT/USDT`**, not `BTC/USDT`. The Binance URL path segment before `@trade` must be the **lowercase** `symbol` (no slash). After switching pairs and re-running dbt, Grafana **Instrument** variables use **`instrument_id`** (e.g. `BTC-USDT`) from `fct_market_metrics`, aligned across venues; pick the matching **`exchange`** filter for venue-scoped panels.
 
 ---
 

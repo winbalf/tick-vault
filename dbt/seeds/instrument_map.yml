@@ -1,0 +1,28 @@
+version: 2
+
+seeds:
+  - name: instrument_map
+    description: >
+      Maps venue partition symbol to canonical base_asset and quote_asset.
+      instrument_id in models is concat(base, '-', quote) when both are set,
+      otherwise the raw symbol (nullable base/quote).
+    columns:
+      - name: exchange
+        description: Venue slug (lowercase), aligned with bronze exchange / producer venue.
+        tests:
+          - not_null
+      - name: symbol
+        description: Path-safe symbol as stored in bronze (e.g. BTCUSDT, XBT-USDT, BTC).
+        tests:
+          - not_null
+      - name: base_asset
+        description: Canonical base ticker (e.g. BTC). Kraken XBT maps to BTC.
+        tests:
+          - not_null
+      - name: quote_asset
+        description: Quote leg (USDT for spot pairs, USD for REST USD index quotes).
+        tests:
+          - not_null
+    tests:
+      - unique_column_combination:
+          columns: ["exchange", "symbol"]

@@ -17,6 +17,14 @@ models:
       - name: symbol
         tests:
           - not_null
+      - name: base_asset
+        description: Canonical base ticker when mapped; null if unknown.
+      - name: quote_asset
+        description: Canonical quote when mapped; null if unknown.
+      - name: instrument_id
+        description: BASE-QUOTE when mapped; otherwise raw symbol.
+        tests:
+          - not_null
       - name: open_price
         tests:
           - not_null
@@ -67,6 +75,14 @@ models:
         tests:
           - not_null
       - name: symbol
+        tests:
+          - not_null
+      - name: base_asset
+        description: Canonical base ticker when mapped; null if unknown.
+      - name: quote_asset
+        description: Canonical quote when mapped; null if unknown.
+      - name: instrument_id
+        description: BASE-QUOTE when mapped; otherwise raw symbol.
         tests:
           - not_null
       - name: avg_spread_bps

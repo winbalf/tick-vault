@@ -32,4 +32,8 @@ The Compose service `grafana` (profile `grafana`) installs the official **BigQue
    - `Tick Vault — Spread & VWAP`
    - `Tick Vault — Volatility Heatmap`
    - `Tick Vault — Pipeline Health`
-8. A Grafana alert rule `DLQ count above threshold` is provisioned and evaluates every minute against the last 5 minutes of data.
+   - `Tick Vault — Exchange & Symbol Intelligence`
+   - `Tick Vault - Base Asset Exchange Comparison`
+   - **`Tick Vault — Debug BigQuery`** (see `dashboards/`)
+8. Template variables filter on **`instrument_id`** (canonical `BASE-QUOTE`, e.g. `BTC-USDT`) from `fct_market_metrics`; venue Hive `symbol` (e.g. `BTCUSDT`, `XBT-USDT`) still appears in table columns where useful for ops.
+9. A Grafana alert rule `DLQ count above threshold` is provisioned and evaluates every minute against the last 5 minutes of data.

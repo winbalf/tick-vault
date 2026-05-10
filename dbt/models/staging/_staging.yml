@@ -4,11 +4,12 @@ models:
   - name: stg_trades
     description: >
       Typed trade ticks from bronze; invalid rows removed. Deduplicated first on
-      Kafka identity (trade_key / topic|partition|offset) for duplicate bronze rows,
-      then on exchange, symbol, trade_id for at-least-once replays with new offsets.
+      Kafka identity (trade_key / topic|partition|offset) for duplicate bronze
+      rows, then on exchange, symbol, trade_id for at-least-once replays with
+      new offsets.
     tests:
       - unique_column_combination:
-          columns: ["trade_id", "event_ts"]
+          columns: [ "trade_id", "event_ts" ]
     columns:
       - name: trade_key
         description: Surrogate key for uniqueness tests (topic|partition|offset).
@@ -19,6 +20,14 @@ models:
         tests:
           - not_null
       - name: symbol
+        tests:
+          - not_null
+      - name: base_asset
+        description: Canonical base ticker when mapped (e.g. BTC); null if unknown.
+      - name: quote_asset
+        description: Canonical quote (e.g. USDT); null if unknown.
+      - name: instrument_id
+        description: BASE-QUOTE when mapped; otherwise raw symbol.
         tests:
           - not_null
       - name: trade_id
@@ -35,7 +44,8 @@ models:
           - not_null
 
   - name: stg_depth
-    description: Order book snapshots with best bid and best ask parsed from the first depth level.
+    description: Order book snapshots with best bid and best ask parsed from the
+      first depth level.
     columns:
       - name: depth_key
         description: Surrogate key for uniqueness tests (topic|partition|offset).
@@ -48,6 +58,14 @@ models:
       - name: symbol
         tests:
           - not_null
+      - name: base_asset
+        description: Canonical base ticker when mapped; null if unknown.
+      - name: quote_asset
+        description: Canonical quote when mapped; null if unknown.
+      - name: instrument_id
+        description: BASE-QUOTE when mapped; otherwise raw symbol.
+        tests:
+          - not_null
       - name: event_ts
         tests:
           - not_null
@@ -58,5 +76,44 @@ models:
         tests:
           - not_null
       - name: mid_price
+        tests:
+          - not_null
+
+  - name: stg_rest_quotes
+    description: >
+      REST quotes from bronze; invalid rows removed. Deduplicated first on Kafka
+      identity (quote_key / topic|partition|offset) for duplicate bronze rows,
+      then on exchange, symbol, quote_id for at-least-once replays with new
+      offsets.
+    tests:
+      - unique_column_combination:
+          columns: [ "quote_id", "event_ts" ]
+    columns:
+      - name: quote_key
+        description: Surrogate key for uniqueness tests (topic|partition|offset).
+        tests:
+          - not_null
+          - unique
+      - name: exchange
+        tests:
+          - not_null
+      - name: symbol
+        tests:
+          - not_null
+      - name: base_asset
+        description: Canonical base ticker when mapped; null if unknown.
+      - name: quote_asset
+        description: Canonical quote when mapped (USD for REST USD price); null if unknown.
+      - name: instrument_id
+        description: BASE-QUOTE when mapped; otherwise raw symbol.
+        tests:
+          - not_null
+      - name: quote_id
+        tests:
+          - not_null
+      - name: event_ts
+        tests:
+          - not_null
+      - name: price_usd
         tests:
           - not_null

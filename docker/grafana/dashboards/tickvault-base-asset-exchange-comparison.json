@@ -1,0 +1,379 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "graphTooltip": 0,
+  "panels": [
+    {
+      "datasource": {
+        "type": "grafana-bigquery-datasource",
+        "uid": "bq_tickvault"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisLabel": "Spread (%)"
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "description": "One line per base asset. Value = cross-venue spread % for that asset each minute: 100 × (highest close − lowest close) ÷ lowest close. Pick one or many assets, or All for every asset.",
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "bq_tickvault"
+          },
+          "editorMode": "code",
+          "format": 1,
+          "rawSql": "WITH latest_ts AS ( SELECT MAX(metric_ts) AS anchor_ts FROM `${gold_dataset}.rpt_exchange_base_asset_price_comparison` WHERE ('${base_asset:csv}' = '$__all' OR base_asset IN UNNEST(SPLIT('${base_asset:csv}', ','))) AND ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) ) SELECT TIMESTAMP(r.metric_ts) AS time, r.base_asset AS metric, CAST(r.cross_exchange_spread_pct AS FLOAT64) AS value FROM `${gold_dataset}.rpt_exchange_base_asset_price_comparison` r CROSS JOIN latest_ts l WHERE r.price_rank_asc = 1 AND ('${base_asset:csv}' = '$__all' OR r.base_asset IN UNNEST(SPLIT('${base_asset:csv}', ','))) AND ('${exchange:csv}' = '$__all' OR r.exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) AND r.metric_ts BETWEEN TIMESTAMP_SUB(l.anchor_ts, INTERVAL 2 DAY) AND l.anchor_ts ORDER BY 1 ASC, 2 ASC",
+          "refId": "A"
+        }
+      ],
+      "title": "Spread % by asset",
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": ["metric"],
+            "keepFields": false,
+            "naming": {
+              "asLabels": false,
+              "withNames": false
+            }
+          }
+        }
+      ],
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "grafana-bigquery-datasource",
+        "uid": "bq_tickvault"
+      },
+      "description": "One row per base asset at the latest minute in the data (after filters). Cheapest and most expensive venue for that asset.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "best_px_usd"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "worst_px_usd"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "spread_usd"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "spread_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 4
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 10
+      },
+      "id": 2,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "asset"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "bq_tickvault"
+          },
+          "editorMode": "code",
+          "format": 0,
+          "rawSql": "WITH latest_ts AS ( SELECT MAX(metric_ts) AS metric_ts FROM `${gold_dataset}.rpt_exchange_base_asset_price_comparison` WHERE ('${base_asset:csv}' = '$__all' OR base_asset IN UNNEST(SPLIT('${base_asset:csv}', ','))) AND ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) ) SELECT r.base_asset AS asset, FORMAT_TIMESTAMP('%F %T', r.metric_ts) AS as_of_utc, r.cheapest_exchange AS best_ex, r.cheapest_symbol AS best_sym, CAST(r.cheapest_price_usd AS FLOAT64) AS best_px_usd, r.most_expensive_exchange AS worst_ex, r.most_expensive_symbol AS worst_sym, CAST(r.most_expensive_price_usd AS FLOAT64) AS worst_px_usd, CAST(r.cross_exchange_spread_usd AS FLOAT64) AS spread_usd, CAST(r.cross_exchange_spread_pct AS FLOAT64) AS spread_pct FROM `${gold_dataset}.rpt_exchange_base_asset_price_comparison` r JOIN latest_ts l ON r.metric_ts = l.metric_ts WHERE r.price_rank_asc = 1 AND ('${base_asset:csv}' = '$__all' OR r.base_asset IN UNNEST(SPLIT('${base_asset:csv}', ','))) AND ('${exchange:csv}' = '$__all' OR r.exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) ORDER BY r.base_asset ASC",
+          "refId": "A"
+        }
+      ],
+      "title": "Latest best vs worst (one row per asset)",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "grafana-bigquery-datasource",
+        "uid": "bq_tickvault"
+      },
+      "description": "Rows grouped by asset, then minute, then rank. Each row is one exchange at that minute for that asset.",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "px_usd"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "prem_usd"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "prem_pct"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 4
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "id": 3,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "asset"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-bigquery-datasource",
+            "uid": "bq_tickvault"
+          },
+          "editorMode": "code",
+          "format": 0,
+          "rawSql": "WITH latest_ts AS ( SELECT MAX(metric_ts) AS anchor_ts FROM `${gold_dataset}.rpt_exchange_base_asset_price_comparison` WHERE ('${base_asset:csv}' = '$__all' OR base_asset IN UNNEST(SPLIT('${base_asset:csv}', ','))) AND ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) ) SELECT r.base_asset AS asset, FORMAT_TIMESTAMP('%F %T', r.metric_ts) AS minute_utc, r.exchange AS ex, r.symbol AS sym, r.price_rank_asc AS rank, CAST(r.close_price_usd AS FLOAT64) AS px_usd, CAST(r.premium_vs_cheapest_pct AS FLOAT64) AS prem_pct, CAST(r.premium_vs_cheapest_usd AS FLOAT64) AS prem_usd, r.cheapest_exchange AS best_ex, r.most_expensive_exchange AS worst_ex FROM `${gold_dataset}.rpt_exchange_base_asset_price_comparison` r CROSS JOIN latest_ts l WHERE ('${base_asset:csv}' = '$__all' OR r.base_asset IN UNNEST(SPLIT('${base_asset:csv}', ','))) AND ('${exchange:csv}' = '$__all' OR r.exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) AND r.metric_ts BETWEEN TIMESTAMP_SUB(l.anchor_ts, INTERVAL 1 DAY) AND l.anchor_ts ORDER BY r.base_asset ASC, r.metric_ts ASC, r.price_rank_asc ASC LIMIT 5000",
+          "refId": "A"
+        }
+      ],
+      "title": "Per exchange, per minute, per asset (last 1d from latest data)",
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": [
+    "tick-vault",
+    "phase-5",
+    "exchange",
+    "comparison",
+    "base-asset"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": "tickvault_gold",
+          "value": "tickvault_gold"
+        },
+        "label": "Gold dataset",
+        "name": "gold_dataset",
+        "options": [
+          {
+            "selected": true,
+            "text": "tickvault_gold",
+            "value": "tickvault_gold"
+          }
+        ],
+        "query": "tickvault_gold",
+        "type": "textbox"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "label": "Base asset",
+        "multi": true,
+        "name": "base_asset",
+        "query": {
+          "rawSql": "SELECT DISTINCT base_asset FROM `${gold_dataset}.rpt_exchange_base_asset_price_comparison` ORDER BY 1",
+          "format": 1
+        },
+        "type": "query",
+        "datasource": {
+          "type": "grafana-bigquery-datasource",
+          "uid": "bq_tickvault"
+        },
+        "definition": "SELECT DISTINCT base_asset FROM `${gold_dataset}.rpt_exchange_base_asset_price_comparison` ORDER BY 1",
+        "refresh": 2,
+        "allValue": "$__all"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "label": "Exchange",
+        "multi": true,
+        "name": "exchange",
+        "query": {
+          "rawSql": "SELECT DISTINCT exchange FROM `${gold_dataset}.rpt_exchange_base_asset_price_comparison` WHERE ('${base_asset:csv}' = '$__all' OR base_asset IN UNNEST(SPLIT('${base_asset:csv}', ','))) ORDER BY 1",
+          "format": 1
+        },
+        "type": "query",
+        "datasource": {
+          "type": "grafana-bigquery-datasource",
+          "uid": "bq_tickvault"
+        },
+        "definition": "SELECT DISTINCT exchange FROM `${gold_dataset}.rpt_exchange_base_asset_price_comparison` WHERE ('${base_asset:csv}' = '$__all' OR base_asset IN UNNEST(SPLIT('${base_asset:csv}', ','))) ORDER BY 1",
+        "refresh": 2,
+        "allValue": "$__all"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-2d",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "Tick Vault - Base Asset Exchange Comparison",
+  "uid": "tickvault-base-asset-exchange-comparison",
+  "version": 6
+}

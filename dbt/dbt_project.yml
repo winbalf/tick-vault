@@ -33,4 +33,4 @@ models:
           field: metric_date
           data_type: date
           granularity: day
-        +cluster_by: ["symbol", "exchange"]
+        +cluster_by: ["instrument_id", "symbol", "exchange"]

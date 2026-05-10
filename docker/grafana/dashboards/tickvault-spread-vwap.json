@@ -40,7 +40,7 @@
           },
           "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT TIMESTAMP(metric_ts) AS time, CONCAT(exchange, ':', symbol) AS metric, CAST(spread_bps AS FLOAT64) AS value FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) AND ('${symbol:csv}' = '$__all' OR symbol IN UNNEST(SPLIT('${symbol:csv}', ','))) AND spread_bps IS NOT NULL AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) ORDER BY 1",
+          "rawSql": "SELECT TIMESTAMP(metric_ts) AS time, CONCAT(exchange, ':', instrument_id) AS metric, CAST(spread_bps AS FLOAT64) AS value FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) AND ('${instrument_id:csv}' = '$__all' OR instrument_id IN UNNEST(SPLIT('${instrument_id:csv}', ','))) AND spread_bps IS NOT NULL AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) ORDER BY 1",
           "refId": "A"
         }
       ],
@@ -82,7 +82,7 @@
           },
           "editorMode": "code",
           "format": 1,
-          "rawSql": "SELECT TIMESTAMP(metric_ts) AS time, CONCAT(exchange, ':', symbol, ':vwap') AS metric, CAST(vwap AS FLOAT64) AS value FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) AND ('${symbol:csv}' = '$__all' OR symbol IN UNNEST(SPLIT('${symbol:csv}', ','))) AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) UNION ALL SELECT TIMESTAMP(metric_ts) AS time, CONCAT(exchange, ':', symbol, ':mid_price') AS metric, CAST(avg_mid_price AS FLOAT64) AS value FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) AND ('${symbol:csv}' = '$__all' OR symbol IN UNNEST(SPLIT('${symbol:csv}', ','))) AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) ORDER BY 1",
+          "rawSql": "SELECT TIMESTAMP(metric_ts) AS time, CONCAT(exchange, ':', instrument_id, ':vwap') AS metric, CAST(vwap AS FLOAT64) AS value FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) AND ('${instrument_id:csv}' = '$__all' OR instrument_id IN UNNEST(SPLIT('${instrument_id:csv}', ','))) AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) UNION ALL SELECT TIMESTAMP(metric_ts) AS time, CONCAT(exchange, ':', instrument_id, ':mid_price') AS metric, CAST(avg_mid_price AS FLOAT64) AS value FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) AND ('${instrument_id:csv}' = '$__all' OR instrument_id IN UNNEST(SPLIT('${instrument_id:csv}', ','))) AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) ORDER BY 1",
           "refId": "A"
         }
       ],
@@ -124,11 +124,11 @@
           },
           "editorMode": "code",
           "format": 1,
-          "rawSql": "WITH base AS ( SELECT metric_ts, exchange, symbol, CAST(close AS FLOAT64) AS close_px, AVG(CAST(close AS FLOAT64)) OVER (PARTITION BY metric_ts, symbol) AS avg_close_px FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) AND ('${symbol:csv}' = '$__all' OR symbol IN UNNEST(SPLIT('${symbol:csv}', ','))) AND close IS NOT NULL AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) ) SELECT TIMESTAMP(metric_ts) AS time, CONCAT(exchange, ':', symbol) AS metric, SAFE_DIVIDE(close_px - avg_close_px, avg_close_px) * 10000 AS value FROM base ORDER BY 1",
+          "rawSql": "WITH base AS ( SELECT metric_ts, exchange, instrument_id, CAST(close AS FLOAT64) AS close_px, AVG(CAST(close AS FLOAT64)) OVER (PARTITION BY metric_ts, instrument_id) AS avg_close_px FROM `${gold_dataset}.fct_market_metrics` WHERE ('${exchange:csv}' = '$__all' OR exchange IN UNNEST(SPLIT('${exchange:csv}', ','))) AND ('${instrument_id:csv}' = '$__all' OR instrument_id IN UNNEST(SPLIT('${instrument_id:csv}', ','))) AND close IS NOT NULL AND metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY) ) SELECT TIMESTAMP(metric_ts) AS time, CONCAT(exchange, ':', instrument_id) AS metric, SAFE_DIVIDE(close_px - avg_close_px, avg_close_px) * 10000 AS value FROM base ORDER BY 1",
           "refId": "A"
         }
       ],
-      "title": "Cross-exchange close deviation vs symbol average (bps)",
+      "title": "Cross-exchange close deviation vs instrument average (bps)",
       "type": "timeseries"
     }
   ],
@@ -186,15 +186,15 @@
       {
         "current": {
           "selected": true,
-          "text": "BTCUSDT",
-          "value": "BTCUSDT"
+          "text": "BTC-USDT",
+          "value": "BTC-USDT"
         },
         "includeAll": true,
-        "label": "Symbol",
+        "label": "Instrument",
         "multi": false,
-        "name": "symbol",
+        "name": "instrument_id",
         "query": {
-          "rawSql": "SELECT DISTINCT symbol FROM `${gold_dataset}.fct_market_metrics` WHERE exchange IN UNNEST(SPLIT('${exchange:csv}', ',')) ORDER BY 1",
+          "rawSql": "SELECT DISTINCT instrument_id FROM `${gold_dataset}.fct_market_metrics` WHERE exchange IN UNNEST(SPLIT('${exchange:csv}', ',')) ORDER BY 1",
           "format": 1
         },
         "type": "query",
@@ -202,7 +202,7 @@
           "type": "grafana-bigquery-datasource",
           "uid": "bq_tickvault"
         },
-        "definition": "SELECT DISTINCT symbol FROM `${gold_dataset}.fct_market_metrics` WHERE exchange IN UNNEST(SPLIT('${exchange:csv}', ',')) ORDER BY 1",
+        "definition": "SELECT DISTINCT instrument_id FROM `${gold_dataset}.fct_market_metrics` WHERE exchange IN UNNEST(SPLIT('${exchange:csv}', ',')) ORDER BY 1",
         "refresh": 2,
         "allValue": "$__all"
       }

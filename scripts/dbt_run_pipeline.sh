@@ -50,4 +50,5 @@ fi
 
 cd "${root}/dbt"
 dbt deps
+dbt seed
 dbt run "$@"

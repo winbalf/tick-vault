@@ -9,6 +9,9 @@ with candles as (
   select
     exchange,
     symbol,
+    any_value(base_asset) as base_asset,
+    any_value(quote_asset) as quote_asset,
+    any_value(instrument_id) as instrument_id,
     timestamp_trunc(event_ts, minute) as metric_ts,
     date(timestamp_trunc(event_ts, minute)) as metric_date,
     min_by(price, event_ts) as open_price,
@@ -37,6 +40,9 @@ with_rollups as (
 select
   exchange,
   symbol,
+  base_asset,
+  quote_asset,
+  instrument_id,
   metric_ts,
   metric_date,
   open_price,

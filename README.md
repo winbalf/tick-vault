@@ -289,7 +289,7 @@ Medallion models read the bronze external table (`tickvault_bronze`), materializ
 **Run**
 
 - From repo root: `./scripts/dbt_build.sh` (sources `.env` if present; uses `dbt/profiles.yml` when `DBT_PROFILES_DIR` is unset and that file exists). For **Apache Airflow** (optional appendix), the DAG calls **`./scripts/dbt_run_pipeline.sh`**. Or: `cd dbt && dbt run` then `dbt test`.
-- Models built: `stg_trades`, `stg_depth`, `stg_rest_quotes`, `int_ohlcv_1m`, `int_depth_1m`, `int_rest_quotes_1m`, and `fct_market_metrics` (partitioned by `metric_date`, clustered by `symbol` and `exchange`).
+- Models built: `stg_trades`, `stg_depth`, `stg_rest_quotes`, `int_ohlcv_1m`, `int_depth_1m`, `int_rest_quotes_1m`, and `fct_market_metrics` (partitioned by `metric_date`, clustered by `instrument_id`, `symbol`, and `exchange`).
 - Documentation: `cd dbt && dbt docs generate` (with credentials, BigQuery fills `catalog.json`). Without warehouse access: `dbt parse && dbt docs generate --no-compile --empty-catalog`. Then `dbt docs serve`.
 
 **Deliverable:** Full medallion dbt project; gold **`fct_market_metrics`** partitioned and clustered for Grafana. dbt docs can be generated locally or in CI (parse/docs without warehouse).
@@ -323,8 +323,10 @@ Gold mart columns include `metric_ts`, `metric_date` (partition), `open`, `high`
 - **Dashboards (JSON under `docker/grafana/dashboards/`):**
   - **`tickvault-overview.json`** — live OHLC candlestick and volume-style views.
   - **`tickvault-spread-vwap.json`** — bid–ask spread and VWAP vs mid.
-  - **`tickvault-volatility-heatmap.json`** — volatility by time × symbol.
+  - **`tickvault-volatility-heatmap.json`** — volatility by time × exchange/instrument.
   - **`tickvault-pipeline-health.json`** — DLQ counts, freshness-style signals, row counts.
+  - **`tickvault-exchange-symbol-intelligence.json`** — cross-venue divergence and symbol-level diagnostics.
+  - **`tickvault-base-asset-exchange-comparison.json`** — cheapest/most-expensive exchange by base asset and minute.
   - **`tickvault-debug.json`** — extra diagnostics for development.
 - **Alerting:** `docker/grafana/templates/alerting.yaml` includes a **DLQ threshold** rule (templated; wire `DLQ_ALERT_THRESHOLD` / datasource in Compose as documented in [`docker/grafana/README.md`](docker/grafana/README.md)).
 
@@ -372,14 +374,14 @@ SELECT MAX(metric_ts) AS max_metric_ts
 FROM `tick-vault.tickvault_gold.fct_market_metrics`;
 ```
 
-2) **All exchanges/symbols are present in the active window**
+2) **All exchanges and instruments are present in the active window**
 
 ```sql
-SELECT exchange, symbol, COUNT(*) rows
+SELECT exchange, instrument_id, symbol, COUNT(*) AS rows
 FROM `tick-vault.tickvault_gold.fct_market_metrics`
 WHERE metric_ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 2 DAY)
-GROUP BY 1,2
-ORDER BY 1,2;
+GROUP BY 1, 2, 3
+ORDER BY 1, 2, 3;
 ```
 
 3) **If the active window is empty, locate the gap quickly**

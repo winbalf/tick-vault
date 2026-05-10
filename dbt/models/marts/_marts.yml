@@ -14,6 +14,14 @@ models:
         description: Path-safe instrument symbol from bronze partitions.
         tests:
           - not_null
+      - name: base_asset
+        description: Canonical base ticker when mapped (BTC, ETH, …); null if unknown.
+      - name: quote_asset
+        description: Canonical quote (USDT for venue pairs, USD for REST USD quotes); null if unknown.
+      - name: instrument_id
+        description: BASE-QUOTE for cross-venue reporting when mapped; otherwise raw symbol.
+        tests:
+          - not_null
       - name: metric_ts
         description: UTC start of the one-minute bucket.
         tests:
@@ -60,5 +68,47 @@ models:
           - not_null
       - name: anomaly_flag
         description: Composite silver anomaly flag propagated for alerting.
+        tests:
+          - not_null
+  - name: rpt_exchange_base_asset_price_comparison
+    description: >
+      Cross-exchange price comparison report at one-minute grain for rows where the
+      same base_asset exists on multiple exchanges. Identifies cheapest/most expensive
+      venue and quantifies premium/discount in USD and percent.
+    columns:
+      - name: metric_ts
+        description: UTC start of the one-minute bucket used for the comparison.
+        tests:
+          - not_null
+      - name: metric_date
+        description: UTC date of metric_ts.
+        tests:
+          - not_null
+      - name: base_asset
+        description: Canonical base ticker compared across exchanges.
+        tests:
+          - not_null
+      - name: exchange
+        description: Exchange for this row's observed price.
+        tests:
+          - not_null
+      - name: symbol
+        description: Exchange-native symbol for the base asset.
+        tests:
+          - not_null
+      - name: close_price_usd
+        description: Per-exchange close price used for ranking at metric_ts.
+        tests:
+          - not_null
+      - name: cheapest_exchange
+        description: Exchange with the lowest close_price_usd for the same base_asset and minute.
+        tests:
+          - not_null
+      - name: most_expensive_exchange
+        description: Exchange with the highest close_price_usd for the same base_asset and minute.
+        tests:
+          - not_null
+      - name: price_rank_asc
+        description: Rank from cheapest (1) to most expensive within metric_ts and base_asset.
         tests:
           - not_null
